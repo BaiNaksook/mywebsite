@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Glaydo.com</title>
+  <link rel="stylesheet" href="home.css">
+</head>
+<body>
+  <div class="container" style="position: relative;">
+
+  <div class="profile-menu" id="profileMenu">
+    <button class="profile-button" id="profileBtn" title="Settings">⚙️</button>
+    <div class="dropdown-content" id="dropdownContent">
+      <a href="https://web.facebook.com/ubaidilla.naksuk" target="_blank" style="display:block; margin-bottom: 5px;">💬Facebook</a>
+      <button id="logoutBtn">Log Out</button>
+    </div>
+  </div>
+
+
+    <div class="header">
+      <h1>Glaydo</h1>
+    </div>
+    <div class="link-box">
+      <a href="https://poki.com/th" target="_blank">🎮 Poki Games</a>
+      <a href="https://th.crazygames.com/" target="_blank">🕹️ Crazy Games</a>
+      <a href="https://th.y8.com/" target="_blank">🎯 Y8 Games</a>
+    </div>
+   <footer class="footer">
+  © 2025 Bai. Game links belong to their respective owners. Font by Google Fonts (Kanit).
+</footer>
+</div>
+
+
+  <script src="auth.js"></script>
+  <script>
+    const profileBtn = document.getElementById('profileBtn');
+    const profileMenu = document.getElementById('profileMenu');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    profileBtn.addEventListener('click', () => {
+      profileMenu.classList.toggle('show');
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      logoutUser();
+    });
+
+    window.addEventListener('click', function(event) {
+      if (!profileMenu.contains(event.target)) {
+        profileMenu.classList.remove('show');
+      }
+    });
+  </script>
+</body>
+</html>

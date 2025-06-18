@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forget-Password-Glaydo</title>
+  <link rel="stylesheet" href="forgot.css">
+</head>
+<body>
+  <div class="Forgot-box">
+    <h2>Forgot Password</h2>
+   <form onsubmit="forgotPassword(event)">
+    <label for="Email">Email</label>
+    <input id="forgot-email" type="email" placeholder="Enter your email" required>
+    <button type="submit">Reset Password</button>
+    <p>Remembered your password?
+        <a href="Login.html">Login</a>
+    </p>
+</form>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+  document.getElementById('forgot-form').addEventListener('submit', forgotPassword);
+</script>
+
+</body>
+</html>
