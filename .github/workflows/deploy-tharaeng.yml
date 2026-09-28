@@ -1,0 +1,56 @@
+# Deploy "ท่าแร้งช่วยกัน" ไป Firebase (Hosting + Firestore rules/indexes + Storage rules)
+# ต้องเพิ่ม GitHub secret ชื่อ FIREBASE_SERVICE_ACCOUNT (JSON key ของ service account) ก่อน
+# ถ้ายังไม่มี secret งานนี้จะข้ามไปเฉย ๆ ไม่ล้ม
+name: Deploy tharaeng to Firebase
+
+on:
+  push:
+    branches: [main, claude/tender-rubin-07g1h5]
+    paths: ['tharaeng/**', '.github/workflows/deploy-tharaeng.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-tharaeng
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tharaeng
+    env:
+      HAS_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    steps:
+      - name: ยังไม่มี secret — ข้าม
+        if: env.HAS_KEY != 'true'
+        working-directory: .
+        run: echo "::notice::ยังไม่ได้ตั้ง secret FIREBASE_SERVICE_ACCOUNT จึงข้ามการ deploy"
+
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tharaeng/package-lock.json
+
+      - name: Install
+        if: env.HAS_KEY == 'true'
+        run: npm ci
+
+      - name: Build
+        if: env.HAS_KEY == 'true'
+        run: npm run build
+
+      - name: Deploy
+        if: env.HAS_KEY == 'true'
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx firebase deploy --project tha-raeng-chuai-kan --non-interactive --force
+          rm -f "$RUNNER_TEMP/sa.json"
