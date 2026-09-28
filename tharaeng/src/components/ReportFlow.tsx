@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, CheckCircle2, MapPin, RotateCcw } from 'lucide-react';
-import { CATEGORIES, categoryLabel, isInAllowedArea, LIMITS } from '../config';
+import { CATEGORIES, categoryLabel, LIMITS } from '../config';
+import { isInTambon } from '../lib/geo';
 import { useAuth } from '../hooks/useAuth';
 import { createReport, newReportId, thaiError, uploadPhoto } from '../lib/reports';
 import { getSavedName, saveName } from '../lib/storage';
@@ -74,7 +75,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
     const e: Errors = {};
     if (s === 0) {
       if (!draft.pos) e.pos = 'กรุณาปักหมุดตำแหน่งที่พบปัญหา';
-      else if (!isInAllowedArea(draft.pos.lat, draft.pos.lng)) e.pos = 'หมุดอยู่นอกพื้นที่ที่รับแจ้ง';
+      else if (!isInTambon(draft.pos.lat, draft.pos.lng)) e.pos = 'หมุดอยู่นอกตำบลท่าแร้ง';
     }
     if (s === 1) {
       if (!draft.category) e.category = 'กรุณาเลือกประเภทปัญหา';

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Crosshair, LocateFixed } from 'lucide-react';
-import { isInAllowedArea } from '../config';
+import { isInTambon } from '../lib/geo';
 import type { Report } from '../types';
-import { addBoundary, createBaseMap, moveMap } from './MapView';
+import { addTambonLayers, createBaseMap, moveMap } from './MapView';
 
 interface Props {
   value: { lat: number; lng: number } | null;
@@ -35,7 +35,7 @@ export function LocationPicker({ value, onChange, existing }: Props) {
     if (!elRef.current) return;
     const map = createBaseMap(elRef.current);
     L.control.zoom({ position: 'topright', zoomInTitle: 'ซูมเข้า', zoomOutTitle: 'ซูมออก' }).addTo(map);
-    addBoundary(map, !value);
+    addTambonLayers(map, { labels: true });
     // หมุดที่มีอยู่แล้ว แสดงจาง ๆ ช่วยกันแจ้งซ้ำ
     for (const r of existing) {
       L.circleMarker([r.lat, r.lng], {
@@ -92,7 +92,7 @@ export function LocationPicker({ value, onChange, existing }: Props) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords;
-        if (!isInAllowedArea(latitude, longitude)) {
+        if (!isInTambon(latitude, longitude)) {
           setGeo('outside');
           return;
         }
@@ -104,7 +104,7 @@ export function LocationPicker({ value, onChange, existing }: Props) {
     );
   }
 
-  const outside = value && !isInAllowedArea(value.lat, value.lng);
+  const outside = value && !isInTambon(value.lat, value.lng);
 
   return (
     <div className="picker">
@@ -165,12 +165,12 @@ export function LocationPicker({ value, onChange, existing }: Props) {
       )}
       {geo === 'outside' && (
         <p className="form-error" role="alert">
-          ตำแหน่งของคุณอยู่นอกพื้นที่ท่าแร้ง/บ้านแหลม ให้แตะแผนที่ตรงจุดที่พบปัญหาแทน
+          ตำแหน่งของคุณอยู่นอกตำบลท่าแร้ง ให้แตะแผนที่ตรงจุดที่พบปัญหาในเขตตำบล (ในเส้นประ) แทน
         </p>
       )}
       {outside && (
         <p className="form-error" role="alert">
-          หมุดอยู่นอกพื้นที่ที่รับแจ้ง กรุณาเลื่อนหมุดให้อยู่ในพื้นที่ตำบลท่าแร้งและบริเวณใกล้เคียง
+          หมุดอยู่นอกตำบลท่าแร้ง กรุณาเลื่อนหมุดให้อยู่ในเส้นประที่เป็นเขตตำบล
         </p>
       )}
       {value && !outside && (

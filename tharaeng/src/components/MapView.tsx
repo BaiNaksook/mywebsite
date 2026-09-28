@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { AREA_CENTER, AREA_ZOOM, BOUNDARY_GEOJSON_URL, statusLabel } from '../config';
+import { AREA_CENTER, AREA_ZOOM, statusLabel } from '../config';
+import { PLACES } from '../data/places';
+import { BOUNDARY_RING } from '../lib/geo';
 import { reportTitle } from '../lib/title';
 import { prefersReducedMotion } from '../hooks/useRoute';
 import type { Report, ReportStatus } from '../types';
@@ -19,19 +21,61 @@ export function createBaseMap(el: HTMLElement, opts: L.MapOptions = {}) {
   return map;
 }
 
-/** โหลดขอบเขตตำบล (ถ้าตั้งค่า VITE_BOUNDARY_GEOJSON_URL ไว้) — ไม่วาดขอบเขตสมมติ */
-export function addBoundary(map: L.Map, fit: boolean) {
-  if (!BOUNDARY_GEOJSON_URL) return;
-  fetch(BOUNDARY_GEOJSON_URL)
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-    .then((geo) => {
-      const layer = L.geoJSON(geo, {
-        interactive: false,
-        style: { color: '#3f7a4f', weight: 2, dashArray: '6 6', fillColor: '#9cc79f', fillOpacity: 0.08 },
-      }).addTo(map);
-      if (fit) map.fitBounds(layer.getBounds(), { padding: [16, 16] });
-    })
-    .catch((e) => console.warn('โหลดขอบเขตตำบลไม่สำเร็จ', e));
+/**
+ * แผนที่เฉพาะตำบลท่าแร้ง: ทำให้พื้นที่นอกตำบลจาง, วาดเส้นขอบเขต, จำกัดการเลื่อนแผนที่
+ * และใส่ป้ายชื่อสถานที่สำคัญ (ชื่อจะแสดงเมื่อซูมเข้าใกล้พอ)
+ */
+export function addTambonLayers(map: L.Map, { labels = true }: { labels?: boolean } = {}) {
+  const ring = BOUNDARY_RING.map(([lng, lat]) => [lat, lng] as [number, number]);
+  const world: [number, number][] = [
+    [-89, -179],
+    [-89, 179],
+    [89, 179],
+    [89, -179],
+  ];
+  L.polygon([world, ring], {
+    interactive: false,
+    stroke: false,
+    fillColor: '#faf6ec',
+    fillOpacity: 0.72,
+  }).addTo(map);
+  const outline = L.polygon(ring, {
+    interactive: false,
+    color: '#35623f',
+    weight: 2.5,
+    dashArray: '7 6',
+    fill: false,
+  }).addTo(map);
+
+  const bounds = outline.getBounds();
+  map.setMaxBounds(bounds.pad(0.35));
+  map.options.maxBoundsViscosity = 0.9;
+  map.fitBounds(bounds, { padding: [12, 12] });
+  map.setMinZoom(Math.max(12, map.getZoom() - 1));
+
+  if (!labels) return;
+  const layer = L.layerGroup().addTo(map);
+  for (const p of PLACES) {
+    L.marker([p.lat, p.lng], {
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: -1000,
+      icon: L.divIcon({
+        className: `place place--${p.kind}`,
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+        html: `<span class="place__dot" aria-hidden="true"></span><span class="place__label">${p.name}</span>`,
+      }),
+    }).addTo(layer);
+  }
+  const container = map.getContainer();
+  const update = () => {
+    const z = map.getZoom();
+    container.classList.toggle('show-village-labels', z >= 14);
+    container.classList.toggle('show-place-labels', z >= 15);
+  };
+  map.on('zoomend', update);
+  update();
 }
 
 /** เลื่อนแผนที่ — ถ้าผู้ใช้ตั้งค่าลดการเคลื่อนไหว จะย้ายทันทีโดยไม่มีแอนิเมชัน */
@@ -75,7 +119,7 @@ export function MapView({ reports, selectedId, onSelect, focus, inset }: Props) 
     if (!elRef.current) return;
     const map = createBaseMap(elRef.current);
     L.control.zoom({ position: 'topright', zoomInTitle: 'ซูมเข้า', zoomOutTitle: 'ซูมออก' }).addTo(map);
-    addBoundary(map, true);
+    addTambonLayers(map);
     mapRef.current = map;
     const ro = new ResizeObserver(() => map.invalidateSize());
     ro.observe(elRef.current);
@@ -158,8 +202,9 @@ export function MapView({ reports, selectedId, onSelect, focus, inset }: Props) 
         type="button"
         className="map-home"
         onClick={() => mapRef.current && moveMap(mapRef.current, AREA_CENTER, AREA_ZOOM)}
+        aria-label="ดูทั้งตำบลท่าแร้ง"
       >
-        กลับไปที่ท่าแร้ง
+        ดูทั้งตำบล
       </button>
     </div>
   );

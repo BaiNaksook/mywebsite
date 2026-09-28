@@ -1088,7 +1088,7 @@ button {
   fill: var(--ok);
 }
 .pin--pick .pin__shape path {
-  fill: var(--danger);
+  fill: var(--ink);
 }
 .pin__glyph {
   position: absolute;
@@ -1557,4 +1557,62 @@ textarea.input {
     linear-gradient(var(--ink), var(--ink)) center / 2px 100% no-repeat,
     linear-gradient(var(--ink), var(--ink)) center / 100% 2px no-repeat;
   opacity: 0.45;
+}
+
+/* ---------- Place labels (สถานที่สำคัญ) ---------- */
+.place {
+  background: none;
+  border: 0;
+  pointer-events: none;
+}
+.place__dot {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--ink-2);
+}
+.place--village .place__dot {
+  display: none;
+}
+.place--temple .place__dot,
+.place--mosque .place__dot {
+  border-color: #8a6a2a;
+}
+.place--school .place__dot,
+.place--community .place__dot {
+  border-color: var(--green-dark);
+}
+.place--government .place__dot,
+.place--health .place__dot {
+  border-color: #2f5f8a;
+}
+.place__label {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-2);
+  text-shadow:
+    0 0 2px #fff,
+    0 0 3px #fff,
+    0 0 4px #fff;
+  display: none;
+}
+.place--village .place__label {
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-head);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--green-dark);
+  letter-spacing: 0.01em;
+}
+.show-village-labels .place--village .place__label,
+.show-place-labels .place__label {
+  display: block;
 }

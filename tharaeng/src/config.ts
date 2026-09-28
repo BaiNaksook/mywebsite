@@ -1,26 +1,22 @@
 import type { CategoryId, ReportStatus } from './types';
 
 /**
- * จุดกึ่งกลางโดยประมาณของตำบลท่าแร้ง อ.บ้านแหลม จ.เพชรบุรี
- * อ้างอิงพิกัดตำบลจากชุดข้อมูลสาธารณะ spicydog/thailand-province-district-subdistrict-zipcode-latitude-longitude
- * (เป็นจุดอ้างอิงสำหรับโฟกัสแผนที่เท่านั้น ไม่ใช่ขอบเขตตำบล)
+ * จุดกึ่งกลางของตำบลท่าแร้ง อ.บ้านแหลม จ.เพชรบุรี (รหัส 760709)
+ * คำนวณจากเส้นขอบเขตใน src/data/tha-raeng-boundary.json
  */
-export const AREA_CENTER: [number, number] = [13.159, 99.96];
+export const AREA_CENTER: [number, number] = [13.1621, 99.9699];
 export const AREA_ZOOM = 14;
 
 /**
- * กรอบพื้นที่กว้าง ๆ ที่อนุญาตให้ปักหมุด (ต้องตรงกับ inArea() ใน firestore.rules)
- * ใช้กันการปักหมุดผิดจังหวัด ไม่ได้แทนขอบเขตตำบลจริง
+ * กรอบสี่เหลี่ยมรอบเขตตำบล (เผื่อขอบประมาณ 800 ม.) ต้องตรงกับ inArea() ใน firestore.rules
+ * ฝั่งหน้าเว็บตรวจละเอียดกว่านี้ด้วยเส้นขอบเขตจริง (isInTambon ใน lib/geo.ts)
  */
 export const ALLOWED_BOUNDS = {
-  south: 12.95,
-  north: 13.4,
-  west: 99.75,
-  east: 100.2,
+  south: 13.125,
+  north: 13.19,
+  west: 99.938,
+  east: 100.012,
 };
-
-/** ไฟล์ขอบเขตตำบล GeoJSON (ถ้ามี) — ใส่เมื่อได้ข้อมูลที่ยืนยันแหล่งที่มาแล้วเท่านั้น */
-export const BOUNDARY_GEOJSON_URL = (import.meta.env.VITE_BOUNDARY_GEOJSON_URL as string | undefined) || '';
 
 export const TAMBON_FACEBOOK_URL = 'https://www.facebook.com/tambontaraeng';
 

@@ -55,7 +55,12 @@ export function AboutPage({ onBack }: { onBack: () => void }) {
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">
             OpenStreetMap
           </a>
-          . ยังไม่ได้แสดงเส้นขอบเขตตำบล เนื่องจากยังไม่มีข้อมูลขอบเขตที่ยืนยันได้
+          .
+        </p>
+        <p className="muted small">
+          เส้นประบนแผนที่คือเขตตำบลท่าแร้ง (รหัส 760709) <strong>โดยประมาณ</strong> จากข้อมูลขอบเขตการปกครองของ UN OCHA /
+          กรมแผนที่ทหาร (CC BY-IGO) ซึ่งเป็นข้อมูลแบบย่อ ไม่ใช่แนวเขตตามกฎหมาย จุดสถานที่สำคัญมาจาก OpenStreetMap และ Overture Maps
+          หากพบว่าตำแหน่งไหนคลาดเคลื่อน แจ้งผู้จัดทำเพื่อแก้ไขได้
         </p>
       </section>
     </div>

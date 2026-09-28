@@ -259,7 +259,10 @@ test('รับงานพร้อมกันผ่าน transaction ได�
         fromStatus: data.status, toStatus: 'in_progress' });
     });
   };
-  await Promise.all(['v1', 'v2', 'v3', 'v4', 'v5', 'v6'].map(joinTx));
+  // เหมือนในแอป (src/lib/reports.ts): ถ้าถูกปฏิเสธเพราะข้อมูลเพิ่งเปลี่ยน ลองใหม่ 1 ครั้งด้วยข้อมูลล่าสุด
+  const joinWithRetry = (uid) =>
+    joinTx(uid).catch((e) => (e.code === 'permission-denied' || e.code === 'aborted' ? joinTx(uid) : Promise.reject(e)));
+  await Promise.all(['v1', 'v2', 'v3', 'v4', 'v5', 'v6'].map(joinWithRetry));
   const data = (await getDoc(doc(db('alice'), 'reports', id))).data();
   if (Object.keys(data.volunteers).length !== 6) throw new Error('expected 6 volunteers, got ' + Object.keys(data.volunteers).length);
   const hist = await getDocs(collection(db('alice'), 'reports', id, 'history'));

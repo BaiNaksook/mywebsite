@@ -25,11 +25,11 @@ service cloud.firestore {
       return t is string && t.size() >= 1 && t.size() <= maxLen;
     }
 
-    // กรอบพื้นที่กว้าง ๆ รอบอำเภอบ้านแหลม/เมืองเพชรบุรี เพื่อกันการปักหมุดนอกพื้นที่
+    // กรอบรอบเขตตำบลท่าแร้ง (เผื่อขอบ ~800 ม.) — ตรงกับ ALLOWED_BOUNDS ใน src/config.ts
     function inArea(lat, lng) {
       return lat is number && lng is number
-        && lat > 12.95 && lat < 13.40
-        && lng > 99.75 && lng < 100.20;
+        && lat > 13.125 && lat < 13.19
+        && lng > 99.938 && lng < 100.012;
     }
 
     function validCategory(c) {

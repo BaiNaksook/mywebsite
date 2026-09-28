@@ -59,6 +59,7 @@ try {
   const helperCtx = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: 'th-TH' });
   const reporter = await reporterCtx.newPage();
   const helper = await helperCtx.newPage();
+  globalThis.__pages = [reporter, helper];
   for (const p of [reporter, helper]) {
     p.on('pageerror', (e) => console.error('pageerror:', e.message));
   }
@@ -78,22 +79,26 @@ try {
   // กดถัดไปโดยไม่ปักหมุด → ต้องแจ้งเตือนภาษาไทย
   await reporter.getByRole('button', { name: 'ถัดไป: กรอกข้อมูล' }).click();
   await reporter.getByText('กรุณาปักหมุดตำแหน่งที่พบปัญหา').waitFor();
-  // ทางเลือกที่ไม่ต้องแตะแผนที่/ลาก: ปักหมุดที่กึ่งกลางแผนที่
-  await reporter.getByRole('button', { name: 'ปักหมุดที่กึ่งกลางแผนที่' }).click();
+  // แตะแผนที่ใกล้ อบต.ท่าแร้ง (อยู่ในเขตตำบล) แล้วลากหมุดขยับเล็กน้อย
+  const ob = await reporter.locator('.place--government .place__dot').boundingBox();
+  await reporter.mouse.click(ob.x + ob.width / 2 + 6, ob.y + ob.height / 2 - 4);
   await reporter.getByText(/พิกัดที่เลือก/).waitFor();
-  const box = await reporter.locator('[data-testid="picker-map"]').boundingBox();
-  await reporter.mouse.click(box.x + box.width / 2 + 20, box.y + box.height / 2 - 10);
-  await reporter.getByText(/พิกัดที่เลือก/).waitFor();
-  // ลากหมุดเพื่อปรับตำแหน่ง
   const pin = reporter.locator('.pin--pick').first();
   const pb = await pin.boundingBox();
   const coordsBefore = await reporter.getByText(/พิกัดที่เลือก/).innerText();
   await reporter.mouse.move(pb.x + pb.width / 2, pb.y + pb.height / 2);
   await reporter.mouse.down();
-  await reporter.mouse.move(pb.x + pb.width / 2 + 40, pb.y + pb.height / 2 + 30, { steps: 8 });
+  await reporter.mouse.move(pb.x + pb.width / 2 + 6, pb.y + pb.height / 2 - 3, { steps: 8 });
   await reporter.mouse.up();
   await reporter.waitForFunction((prev) => !document.body.innerText.includes(prev), coordsBefore);
-  step('ปักหมุดและลากหมุดแก้ตำแหน่งได้');
+  step('ปักหมุดในเขตตำบลและลากหมุดแก้ตำแหน่งได้');
+  // จุดนอกเส้นประต้องถูกปฏิเสธ
+  const mapBox = await reporter.locator('[data-testid="picker-map"]').boundingBox();
+  await reporter.mouse.click(mapBox.x + mapBox.width - 30, mapBox.y + mapBox.height - 40);
+  await reporter.getByText(/หมุดอยู่นอกตำบลท่าแร้ง/).first().waitFor();
+  await reporter.mouse.click(ob.x + ob.width / 2 + 6, ob.y + ob.height / 2 - 4);
+  await reporter.getByText(/พิกัดที่เลือก/).waitFor();
+  step('ปักหมุดนอกเขตตำบลไม่ได้ (มีข้อความเตือน)');
   await reporter.getByRole('button', { name: 'ถัดไป: กรอกข้อมูล' }).click();
 
   // ส่งฟอร์มว่าง → ตรวจช่องจำเป็น
@@ -110,19 +115,19 @@ try {
   step('ตรวจช่องจำเป็น: สรุปข้อผิดพลาดภาษาไทยด้านบน (รับโฟกัส ลิงก์ไปที่ช่อง) + ข้อความใต้แต่ละช่อง');
 
   await reporter.locator('.cat-option', { hasText: 'น้ำท่วมขัง' }).click();
-  await reporter.locator('input[name="placeName"]').fill('ทางแยกท่าแร้ง (ทดสอบ E2E)');
+  await reporter.locator('input[name="placeName"]').fill('หน้า อบต.ท่าแร้ง (ทดสอบ E2E)');
   await reporter.locator('textarea[name="description"]').fill('มีน้ำท่วมขังหลังฝนตก รถผ่านลำบาก');
   await reporter.locator('input[name="reporterName"]').fill('นาย ก');
   await reporter.locator('[data-testid="photo-input"]').setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: PNG });
   await reporter.locator('.photo-preview img').waitFor();
   await reporter.getByRole('button', { name: 'ถัดไป: ตรวจสอบข้อมูล' }).click();
-  await reporter.getByText('น้ำท่วมขัง บริเวณทางแยกท่าแร้ง (ทดสอบ E2E)').waitFor();
+  await reporter.getByText('น้ำท่วมขัง หน้า อบต.ท่าแร้ง (ทดสอบ E2E)').waitFor();
   await reporter.getByTestId('submit-report').click();
   await reporter.getByText('ส่งเรื่องเรียบร้อย').waitFor({ timeout: 15000 });
   step('ส่งรายงานพร้อมรูปภาพสำเร็จ');
 
   // 2) หมุดปรากฏบนแผนที่ของอีกเครื่องแบบเรียลไทม์ (ไม่รีโหลด)
-  const item = helper.locator('.report-item', { hasText: 'ทางแยกท่าแร้ง (ทดสอบ E2E)' });
+  const item = helper.locator('.report-item', { hasText: 'หน้า อบต.ท่าแร้ง (ทดสอบ E2E)' });
   await item.waitFor({ timeout: 10000 });
   const reportId = await item.getAttribute('data-report-id');
   await helper.locator(`.leaflet-marker-icon[data-report-id="${reportId}"][data-status="open"]`).waitFor();
@@ -132,7 +137,7 @@ try {
   // 3) จิตอาสารับช่วย — กดจากรายการแล้วแผนที่เลื่อนไปที่หมุด
   await item.click();
   const card = helper.locator('.float-card');
-  await card.getByRole('heading', { name: 'น้ำท่วมขัง บริเวณทางแยกท่าแร้ง (ทดสอบ E2E)' }).waitFor();
+  await card.getByRole('heading', { name: 'น้ำท่วมขัง หน้า อบต.ท่าแร้ง (ทดสอบ E2E)' }).waitFor();
   await card.locator('.detail__photo img').waitFor();
   await signIn(helper, card, 'helper@example.com');
   await card.getByRole('button', { name: 'รับช่วยเหลือ' }).click();
@@ -195,13 +200,16 @@ try {
 
   // ตัวกรอง
   await helper.locator('.chip', { hasText: 'ไฟส่องสว่าง' }).click();
-  assert.equal(await helper.locator('.report-item', { hasText: 'ทางแยกท่าแร้ง (ทดสอบ E2E)' }).count(), 0);
+  assert.equal(await helper.locator('.report-item', { hasText: 'หน้า อบต.ท่าแร้ง (ทดสอบ E2E)' }).count(), 0);
   await helper.locator('.chip', { hasText: 'ทุกประเภท' }).click();
   step('กรองตามประเภทได้');
 
   console.log('\nผ่านทุกขั้นตอน');
 } catch (e) {
   console.error('\nไม่ผ่าน:', e);
+  for (const [i, pg] of (globalThis.__pages ?? []).entries()) {
+    await pg.screenshot({ path: `test-results/e2e-fail-${i}.png` }).catch(() => {});
+  }
   process.exitCode = 1;
 } finally {
   await browser.close();

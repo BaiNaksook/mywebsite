@@ -34,25 +34,25 @@ async function put(path, data) {
 
 const samples = [
   {
-    id: 'sample-flood', category: 'flood', placeName: 'ทางแยกท่าแร้ง', lat: 13.1602, lng: 99.9588,
+    id: 'sample-flood', category: 'flood', placeName: 'ถนนหน้ามัสยิดนัศรุ้ลบารีย์', lat: 13.1562, lng: 99.9612,
     description: '[ข้อมูลตัวอย่าง] มีน้ำท่วมขังหลังฝนตก รถจักรยานยนต์ผ่านลำบาก', reporterName: 'นาย ก (ตัวอย่าง)',
     status: 'open', volunteers: {}, hoursAgo: 3,
   },
   {
-    id: 'sample-garbage', category: 'garbage', placeName: 'ริมคลองข้างศาลา', lat: 13.1571, lng: 99.9635,
+    id: 'sample-garbage', category: 'garbage', placeName: 'ริมคลองท่าแร้ง', lat: 13.1605, lng: 99.9745,
     description: '[ข้อมูลตัวอย่าง] ขยะพลาสติกติดริมคลอง ส่งกลิ่นเหม็น', reporterName: 'ป้าแดง (ตัวอย่าง)',
     status: 'in_progress', hoursAgo: 26,
     volunteers: { 'sample-v1': { name: 'นาย ข (ตัวอย่าง)', joinedAt: ago(20) }, 'sample-v2': { name: 'น้องมิ้น (ตัวอย่าง)', joinedAt: ago(18) } },
   },
   {
-    id: 'sample-light', category: 'light', placeName: 'ซอยหลังโรงเรียน', lat: 13.1624, lng: 99.9651,
+    id: 'sample-light', category: 'light', placeName: 'ซอยข้างโรงเรียนวัดกุฏิ', lat: 13.1512, lng: 99.9495,
     description: '[ข้อมูลตัวอย่าง] ไฟทางดับ 2 ต้น กลางคืนมืดมาก', reporterName: 'นาย ค (ตัวอย่าง)',
     status: 'resolved', hoursAgo: 72,
     volunteers: { 'sample-v3': { name: 'ลุงสมชาย (ตัวอย่าง)', joinedAt: ago(60) } },
     resolution: { note: '[ข้อมูลตัวอย่าง] ประสานช่างเปลี่ยนหลอดไฟแล้ว', photoUrl: null, byUid: 'sample-v3', byName: 'ลุงสมชาย (ตัวอย่าง)', at: ago(40) },
   },
   {
-    id: 'sample-road', category: 'road', placeName: 'ถนนเลียบนาเกลือ', lat: 13.1553, lng: 99.9562,
+    id: 'sample-road', category: 'road', placeName: 'ถนนเข้าบ้านคลองมอญ', lat: 13.1655, lng: 99.9840,
     description: '[ข้อมูลตัวอย่าง] ถนนเป็นหลุมลึก ขอบถนนทรุด', reporterName: 'นาง ง (ตัวอย่าง)',
     status: 'open', volunteers: {}, hoursAgo: 8,
   },
