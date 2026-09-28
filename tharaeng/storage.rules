@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// รูปภาพประกอบรายงานและรูปหลังแก้ไข
+// - ทุกคนดูรูปได้ (แสดงบนแผนที่สาธารณะ)
+// - อัปโหลดได้เฉพาะในโฟลเดอร์ของตัวเอง ต้องเป็นรูปภาพ ขนาดไม่เกิน 5 MB
+// - แก้ไข/ลบไม่ได้ (กันการสลับรูปหลังส่ง)
+service firebase.storage {
+  match /b/{bucket}/o {
+    function validImage() {
+      return request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    match /reports/{uid}/{reportId}/{fileName} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == uid && validImage();
+      allow update, delete: if false;
+    }
+
+    match /resolutions/{uid}/{reportId}/{fileName} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == uid && validImage();
+      allow update, delete: if false;
+    }
+  }
+}

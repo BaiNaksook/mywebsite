@@ -1,0 +1,207 @@
+rules_version = '2';
+
+// กฎความปลอดภัยของ "ท่าแร้งช่วยกัน"
+// - ทุกคนอ่านรายงานที่ไม่ได้ถูกซ่อนได้ (ดูแผนที่/สถิติโดยไม่ต้องเข้าสู่ระบบ)
+// - การเขียนทุกครั้งต้องเข้าสู่ระบบ และต้องเป็น "การกระทำ" ที่อนุญาตเท่านั้น
+//   (แจ้งปัญหา / รับช่วยเหลือ / ถอนตัว / แจ้งว่าแก้ไขแล้ว / เปิดปัญหาอีกครั้ง / ซ่อนรายงาน)
+// - ทุกการเปลี่ยนแปลงต้องเขียนประวัติ (history) คู่กันในคำขอเดียวกัน ตรวจด้วย lastEventId
+// - ผู้ดูแลคือผู้ที่มีเอกสาร admins/{uid} (เพิ่มเองใน Firebase Console เท่านั้น)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function validName(n) {
+      return n is string && n.size() >= 1 && n.size() <= 60;
+    }
+
+    function validText(t, maxLen) {
+      return t is string && t.size() >= 1 && t.size() <= maxLen;
+    }
+
+    // กรอบพื้นที่กว้าง ๆ รอบอำเภอบ้านแหลม/เมืองเพชรบุรี เพื่อกันการปักหมุดนอกพื้นที่
+    function inArea(lat, lng) {
+      return lat is number && lng is number
+        && lat > 12.95 && lat < 13.40
+        && lng > 99.75 && lng < 100.20;
+    }
+
+    function validCategory(c) {
+      return c in ['flood', 'garbage', 'road', 'light', 'other'];
+    }
+
+    function validPhotoUrl(u) {
+      return u == null || (u is string && u.size() < 2000 && (
+        u.matches('^https://firebasestorage[.]googleapis[.]com/.*')
+        || u.matches('^http://(127[.]0[.]0[.]1|localhost):9199/.*')
+      ));
+    }
+
+    function reportPath(reportId) {
+      return /databases/$(database)/documents/reports/$(reportId);
+    }
+
+    function historyPath(reportId, eventId) {
+      return /databases/$(database)/documents/reports/$(reportId)/history/$(eventId);
+    }
+
+    // ทุกการเขียนรายงานต้องสร้าง history ใหม่ที่ id ตรงกับ lastEventId ในคำขอเดียวกัน
+    function writesHistory(reportId) {
+      return request.resource.data.lastEventId is string
+        && existsAfter(historyPath(reportId, request.resource.data.lastEventId));
+    }
+
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function volunteersDiff() {
+      return request.resource.data.volunteers.diff(resource.data.volunteers);
+    }
+
+    // --- การกระทำที่อนุญาต ---
+
+    // รับช่วยเหลือ: เพิ่มชื่อตัวเองเข้า volunteers ได้เฉพาะของตัวเอง และยังไม่เคยรับ
+    function isJoin() {
+      let me = request.auth.uid;
+      let v = request.resource.data.volunteers[me];
+      return resource.data.status in ['open', 'in_progress']
+        && changed().hasOnly(['volunteers', 'status', 'updatedAt', 'lastEventId'])
+        && request.resource.data.status == 'in_progress'
+        && volunteersDiff().addedKeys() == [me].toSet()
+        && volunteersDiff().affectedKeys() == [me].toSet()
+        && v.keys().hasOnly(['name', 'joinedAt']) && v.keys().hasAll(['name', 'joinedAt'])
+        && validName(v.name)
+        && v.joinedAt == request.time;
+    }
+
+    // ถอนตัว: ลบเฉพาะชื่อตัวเอง ถ้าไม่เหลือใครสถานะกลับเป็น "รอความช่วยเหลือ"
+    function isLeave() {
+      let me = request.auth.uid;
+      let after = request.resource.data;
+      return resource.data.status == 'in_progress'
+        && changed().hasOnly(['volunteers', 'status', 'updatedAt', 'lastEventId'])
+        && volunteersDiff().removedKeys() == [me].toSet()
+        && volunteersDiff().affectedKeys() == [me].toSet()
+        && ((after.volunteers.size() == 0 && after.status == 'open')
+          || (after.volunteers.size() > 0 && after.status == 'in_progress'));
+    }
+
+    // แจ้งว่าแก้ไขแล้ว: ต้องเป็นจิตอาสาที่รับงานนี้ (หรือผู้ดูแล)
+    function isResolve() {
+      let r = request.resource.data.resolution;
+      return (
+          (resource.data.status == 'in_progress' && request.auth.uid in resource.data.volunteers)
+          || (resource.data.status in ['open', 'in_progress'] && isAdmin())
+        )
+        && changed().hasOnly(['status', 'resolution', 'updatedAt', 'lastEventId'])
+        && request.resource.data.status == 'resolved'
+        && r.keys().hasOnly(['note', 'photoUrl', 'byUid', 'byName', 'at'])
+        && r.keys().hasAll(['note', 'photoUrl', 'byUid', 'byName', 'at'])
+        && r.byUid == request.auth.uid
+        && validName(r.byName)
+        && validText(r.note, 1000)
+        && validPhotoUrl(r.photoUrl)
+        && r.at == request.time;
+    }
+
+    // เปิดปัญหาอีกครั้ง: เฉพาะผู้แจ้งเดิมหรือผู้ดูแล เมื่อสถานะเป็น "แก้ไขแล้ว"
+    function isReopen() {
+      let after = request.resource.data;
+      return resource.data.status == 'resolved'
+        && (resource.data.reporterUid == request.auth.uid || isAdmin())
+        && changed().hasOnly(['status', 'volunteers', 'resolution', 'reopenCount', 'updatedAt', 'lastEventId'])
+        && after.status == 'open'
+        && after.volunteers == {}
+        && after.resolution == null
+        && after.reopenCount == resource.data.reopenCount + 1;
+    }
+
+    // ซ่อนรายงาน (เช่น แจ้งผิด/ซ้ำ): ผู้ดูแลทำได้เสมอ ผู้แจ้งทำได้ถ้ายังไม่มีใครรับงาน
+    function isHide() {
+      return changed().hasOnly(['hidden', 'updatedAt', 'lastEventId'])
+        && request.resource.data.hidden is bool
+        && (
+          isAdmin()
+          || (resource.data.reporterUid == request.auth.uid
+            && resource.data.status == 'open'
+            && resource.data.volunteers.size() == 0
+            && request.resource.data.hidden == true)
+        );
+    }
+
+    match /reports/{reportId} {
+      allow get, list: if resource.data.hidden == false || isAdmin();
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'reporterUid', 'reporterName', 'category', 'placeName', 'description',
+          'lat', 'lng', 'photoUrl', 'status', 'volunteers', 'resolution',
+          'hidden', 'reopenCount', 'createdAt', 'updatedAt', 'lastEventId'])
+        && request.resource.data.keys().hasAll([
+          'reporterUid', 'reporterName', 'category', 'placeName', 'description',
+          'lat', 'lng', 'photoUrl', 'status', 'volunteers', 'resolution',
+          'hidden', 'reopenCount', 'createdAt', 'updatedAt', 'lastEventId'])
+        && request.resource.data.reporterUid == request.auth.uid
+        && validName(request.resource.data.reporterName)
+        && validCategory(request.resource.data.category)
+        && validText(request.resource.data.placeName, 120)
+        && validText(request.resource.data.description, 2000)
+        && inArea(request.resource.data.lat, request.resource.data.lng)
+        && validPhotoUrl(request.resource.data.photoUrl)
+        && request.resource.data.status == 'open'
+        && request.resource.data.volunteers == {}
+        && request.resource.data.resolution == null
+        && request.resource.data.hidden == false
+        && request.resource.data.reopenCount == 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && writesHistory(reportId);
+
+      allow update: if signedIn()
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.lastEventId != resource.data.lastEventId
+        && writesHistory(reportId)
+        && (isJoin() || isLeave() || isResolve() || isReopen() || isHide());
+
+      allow delete: if false;
+
+      // ประวัติการเปลี่ยนสถานะ: เพิ่มได้อย่างเดียว แก้/ลบไม่ได้
+      match /history/{eventId} {
+        allow read: if get(reportPath(reportId)).data.hidden == false || isAdmin();
+
+        allow create: if signedIn()
+          && getAfter(reportPath(reportId)).data.lastEventId == eventId
+          && request.resource.data.keys().hasOnly(['type', 'byUid', 'byName', 'at', 'note', 'fromStatus', 'toStatus'])
+          && request.resource.data.keys().hasAll(['type', 'byUid', 'byName', 'at', 'note', 'fromStatus', 'toStatus'])
+          && request.resource.data.type in ['created', 'joined', 'left', 'resolved', 'reopened', 'hidden', 'unhidden']
+          && request.resource.data.byUid == request.auth.uid
+          && validName(request.resource.data.byName)
+          && request.resource.data.at == request.time
+          && (request.resource.data.note == null || validText(request.resource.data.note, 1000))
+          && request.resource.data.toStatus == getAfter(reportPath(reportId)).data.status
+          // fromStatus เป็นข้อมูลประกอบ ไม่ตรวจกับสถานะเดิมแบบเคร่งครัด
+          // เพื่อไม่ให้ transaction ที่รับงานพร้อมกันถูกปฏิเสธแทนที่จะลองใหม่
+          && (
+            (request.resource.data.type == 'created' && request.resource.data.fromStatus == null)
+            || (request.resource.data.type != 'created'
+              && request.resource.data.fromStatus in ['open', 'in_progress', 'resolved'])
+          );
+
+        allow update, delete: if false;
+      }
+    }
+
+    // รายชื่อผู้ดูแล: เพิ่มผ่าน Firebase Console เท่านั้น ผู้ใช้อ่านได้เฉพาะของตัวเอง
+    match /admins/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+  }
+}
