@@ -23,7 +23,6 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
-import { ref, uploadBytes } from 'firebase/storage';
 
 let env;
 
@@ -31,7 +30,6 @@ before(async () => {
   env = await initializeTestEnvironment({
     projectId: 'demo-tharaeng',
     firestore: { rules: readFileSync('firestore.rules', 'utf8'), host: '127.0.0.1', port: 8080 },
-    storage: { rules: readFileSync('storage.rules', 'utf8'), host: '127.0.0.1', port: 9199 },
   });
 });
 
@@ -54,7 +52,7 @@ function newReport(uid, overrides = {}) {
     description: 'มีน้ำท่วมขังหลังฝนตก',
     lat: 13.159,
     lng: 99.96,
-    photoUrl: null,
+    photoId: null,
     status: 'open',
     volunteers: {},
     resolution: null,
@@ -105,7 +103,7 @@ const join = (uid, id, from = 'open', name = 'นาย ข') =>
 const resolve = (uid, id, extra = {}) =>
   act(uid, id, 'resolved', 'in_progress', 'resolved', {
     status: 'resolved',
-    resolution: { note: 'ลอกท่อระบายน้ำแล้ว', photoUrl: null, byUid: uid, byName: 'นาย ข', at: serverTimestamp(), ...extra },
+    resolution: { note: 'ลอกท่อระบายน้ำแล้ว', photoId: null, byUid: uid, byName: 'นาย ข', at: serverTimestamp(), ...extra },
   });
 
 const reopen = (uid, id, count = 1) =>
@@ -145,7 +143,7 @@ test('ห้ามสร้างรายงานพร้อมสถาน�
   await assertFails(createReport('alice', { volunteers: { alice: { name: 'x', joinedAt: serverTimestamp() } } }));
   await assertFails(createReport('alice', { category: 'hack' }));
   await assertFails(createReport('alice', { description: '' }));
-  await assertFails(createReport('alice', { photoUrl: 'https://evil.example.com/x.jpg' }));
+  await assertFails(createReport('alice', { photoId: 'does-not-exist' }));
 });
 
 test('จิตอาสารับช่วยเหลือได้ และสถานะเปลี่ยนเป็นกำลังดำเนินการ', async () => {
@@ -272,7 +270,7 @@ test('รับงานพร้อมกันผ่าน transaction ได�
   };
   // เหมือนในแอป (src/lib/reports.ts): ถ้าถูกปฏิเสธเพราะข้อมูลเพิ่งเปลี่ยน ลองใหม่ 1 ครั้งด้วยข้อมูลล่าสุด
   const joinWithRetry = (uid) =>
-    joinTx(uid).catch((e) => (e.code === 'permission-denied' || e.code === 'aborted' ? joinTx(uid) : Promise.reject(e)));
+    joinTx(uid).catch((e) => (['permission-denied', 'aborted', 'failed-precondition'].includes(e.code) ? joinTx(uid) : Promise.reject(e)));
   await Promise.all(['v1', 'v2', 'v3', 'v4', 'v5', 'v6'].map(joinWithRetry));
   const data = (await getDoc(doc(db('alice'), 'reports', id))).data();
   if (Object.keys(data.volunteers).length !== 6) throw new Error('expected 6 volunteers, got ' + Object.keys(data.volunteers).length);
@@ -289,13 +287,18 @@ test('ผู้ดูแลอ่านได้เฉพาะเอกสา�
   await assertFails(setDoc(doc(db('bob'), 'admins', 'bob'), { note: 'x' }));
 });
 
-test('Storage: อัปโหลดรูปได้เฉพาะโฟลเดอร์ตัวเอง และต้องเป็นรูปภาพ', async () => {
-  const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
-  const s = (uid) => env.authenticatedContext(uid).storage();
-  await assertSucceeds(uploadBytes(ref(s('alice'), 'reports/alice/r1/photo.jpg'), bytes, { contentType: 'image/jpeg' }));
-  await assertFails(uploadBytes(ref(s('alice'), 'reports/bob/r1/photo.jpg'), bytes, { contentType: 'image/jpeg' }));
-  await assertFails(uploadBytes(ref(s('alice'), 'reports/alice/r1/x.html'), bytes, { contentType: 'text/html' }));
-  await assertFails(
-    uploadBytes(ref(env.unauthenticatedContext().storage(), 'reports/anon/r1/p.jpg'), bytes, { contentType: 'image/jpeg' }),
-  );
+test('รูป: เพิ่มได้เฉพาะของตัวเอง ต้องเป็น JPEG ขนาดพอดี แก้/ลบไม่ได้ และรายงานอ้างรูปคนอื่นไม่ได้', async () => {
+  const jpeg = 'data:image/jpeg;base64,' + 'A'.repeat(1000);
+  const p = (uid, data = jpeg, owner = uid) =>
+    setDoc(doc(db(uid), 'photos', `${uid}-p`), { ownerUid: owner, data, createdAt: serverTimestamp() });
+  await assertSucceeds(p('alice'));
+  await assertFails(setDoc(doc(db('bob'), 'photos', 'x1'), { ownerUid: 'alice', data: jpeg, createdAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(db('bob'), 'photos', 'x2'), { ownerUid: 'bob', data: 'data:text/html;base64,AAAA', createdAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(db('bob'), 'photos', 'x3'), { ownerUid: 'bob', data: 'data:image/jpeg;base64,' + 'A'.repeat(700000), createdAt: serverTimestamp() }));
+  await assertFails(setDoc(doc(db(null), 'photos', 'x4'), { ownerUid: 'anon', data: jpeg, createdAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(db('alice'), 'photos', 'alice-p'), { data: jpeg + 'B' }));
+  await assertSucceeds(getDoc(doc(db(null), 'photos', 'alice-p')));
+  // รายงานอ้างรูปของตัวเองได้ แต่อ้างรูปของคนอื่นไม่ได้
+  await assertSucceeds(createReport('alice', { photoId: 'alice-p' }));
+  await assertFails(createReport('bob', { photoId: 'alice-p' }));
 });

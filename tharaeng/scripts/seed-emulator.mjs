@@ -49,7 +49,7 @@ const samples = [
     description: '[ข้อมูลตัวอย่าง] ไฟทางดับ 2 ต้น กลางคืนมืดมาก', reporterName: 'นาย ค (ตัวอย่าง)',
     status: 'resolved', hoursAgo: 72,
     volunteers: { 'sample-v3': { name: 'ลุงสมชาย (ตัวอย่าง)', joinedAt: ago(60) } },
-    resolution: { note: '[ข้อมูลตัวอย่าง] ประสานช่างเปลี่ยนหลอดไฟแล้ว', photoUrl: null, byUid: 'sample-v3', byName: 'ลุงสมชาย (ตัวอย่าง)', at: ago(40) },
+    resolution: { note: '[ข้อมูลตัวอย่าง] ประสานช่างเปลี่ยนหลอดไฟแล้ว', photoId: null, byUid: 'sample-v3', byName: 'ลุงสมชาย (ตัวอย่าง)', at: ago(40) },
   },
   {
     id: 'sample-road', category: 'road', placeName: 'ถนนเข้าบ้านคลองมอญ', lat: 13.1655, lng: 99.9840,
@@ -62,7 +62,7 @@ for (const s of samples) {
   const at = ago(s.hoursAgo);
   await put(`reports/${s.id}`, {
     reporterUid: 'sample-reporter', reporterName: s.reporterName, category: s.category, placeName: s.placeName,
-    description: s.description, lat: s.lat, lng: s.lng, photoUrl: null, status: s.status, volunteers: s.volunteers,
+    description: s.description, lat: s.lat, lng: s.lng, photoId: null, status: s.status, volunteers: s.volunteers,
     resolution: s.resolution ?? null, hidden: false, reopenCount: 0, createdAt: at, updatedAt: at, lastEventId: 'e0',
   });
   await put(`reports/${s.id}/history/e0`, {

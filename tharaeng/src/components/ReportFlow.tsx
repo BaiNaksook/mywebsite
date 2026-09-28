@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle2, MapPin, RotateCcw } from 'lucide-react';
 import { CATEGORIES, categoryLabel, LIMITS } from '../config';
 import { isInTambon } from '../lib/geo';
 import { useAuth } from '../hooks/useAuth';
-import { createReport, newReportId, thaiError, uploadPhoto } from '../lib/reports';
+import { createReport, newReportId, savePhoto, thaiError } from '../lib/reports';
 import { getSavedName, saveName } from '../lib/storage';
 import { clearDraft, loadDraftFields, loadDraftPhoto, saveDraftFields, saveDraftPhoto } from '../lib/draft';
 import { nearText } from '../lib/nearby';
@@ -32,7 +32,7 @@ type Errors = Partial<Record<'pos' | 'category' | 'placeName' | 'description' | 
 
 type Submit =
   | { state: 'idle' }
-  | { state: 'uploading'; pct: number; stalled?: boolean }
+  | { state: 'uploading'; pct: number }
   | { state: 'saving'; slow: boolean }
   | { state: 'success' }
   | { state: 'error'; message: string };
@@ -59,9 +59,6 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
   const topRef = useRef<HTMLDivElement>(null);
   const [restored, setRestored] = useState(false);
   const draftLoadedRef = useRef(false);
-  const abortRef = useRef<AbortController | null>(null);
-  const skipPhotoRef = useRef(false);
-  const lastProgressRef = useRef(0);
 
   // กู้ร่างที่ค้างไว้ (ถ้ามี)
   useEffect(() => {
@@ -180,46 +177,18 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
     }
     const id = (reportIdRef.current ??= newReportId());
     let slowTimer: number | undefined;
-    let stallTimer: number | undefined;
     try {
       setSubmit({ state: 'saving', slow: false });
       const user = await ensureUser();
-      let photoUrl: string | null = null;
+      let photoId: string | null = null;
       if (draft.photo && !withoutPhoto) {
         if (uploadedRef.current?.blob === draft.photo) {
-          photoUrl = uploadedRef.current.url;
+          photoId = uploadedRef.current.url;
         } else {
           const photo = draft.photo;
           setSubmit({ state: 'uploading', pct: 0 });
-          const ctrl = new AbortController();
-          abortRef.current = ctrl;
-          skipPhotoRef.current = false;
-          lastProgressRef.current = Date.now();
-          let pct = 0;
-          // ถ้าไม่มีความคืบหน้า 15 วินาที ถือว่าสัญญาณอ่อน ให้เลือกส่งโดยไม่มีรูปได้
-          stallTimer = window.setInterval(() => {
-            if (Date.now() - lastProgressRef.current > 15000) setSubmit({ state: 'uploading', pct, stalled: true });
-          }, 3000);
-          try {
-            photoUrl = await uploadPhoto(
-              'reports',
-              user.uid,
-              id,
-              photo,
-              (p) => {
-                if (p > pct) lastProgressRef.current = Date.now();
-                pct = p;
-                setSubmit({ state: 'uploading', pct });
-              },
-              ctrl.signal,
-            );
-            uploadedRef.current = { blob: photo, url: photoUrl };
-          } catch (err) {
-            if (!skipPhotoRef.current) throw err;
-            photoUrl = null;
-          } finally {
-            window.clearInterval(stallTimer);
-          }
+          photoId = await savePhoto(user.uid, photo);
+          uploadedRef.current = { blob: photo, url: photoId };
         }
       }
       setSubmit({ state: 'saving', slow: false });
@@ -234,7 +203,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
         description: draft.description.trim(),
         lat: Number(draft.pos.lat.toFixed(6)),
         lng: Number(draft.pos.lng.toFixed(6)),
-        photoUrl,
+        photoId,
       });
       saveName(name);
       clearDraft();
@@ -244,14 +213,9 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
       setSubmit({ state: 'error', message: thaiError(e) });
     } finally {
       window.clearTimeout(slowTimer);
-      window.clearInterval(stallTimer);
     }
   }
 
-  function skipPhoto() {
-    skipPhotoRef.current = true;
-    abortRef.current?.abort();
-  }
 
   const busy = submit.state === 'uploading' || submit.state === 'saving';
 
@@ -504,7 +468,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
           <div className="flow__nav">
             <button type="button" className="btn btn--primary btn--block btn--lg" onClick={() => send()} disabled={busy} data-testid="submit-report">
               {submit.state === 'uploading'
-                ? `กำลังอัปโหลดรูป… ${submit.pct}%`
+                ? 'กำลังส่งรูป…'
                 : submit.state === 'saving'
                   ? 'กำลังส่ง…'
                   : submit.state === 'error'
@@ -515,14 +479,6 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
                     )
                     : 'ยืนยันและส่งเรื่อง'}
             </button>
-            {submit.state === 'uploading' && submit.stalled && (
-              <div className="notice" role="status">
-                <p>สัญญาณอ่อน รูปยังส่งไม่ออก ข้อมูลที่กรอกยังอยู่ครบ</p>
-                <button type="button" className="btn btn--secondary" onClick={skipPhoto}>
-                  ส่งเรื่องโดยไม่มีรูป
-                </button>
-              </div>
-            )}
             {submit.state === 'error' && draft.photo && !uploadedRef.current && (
               <button type="button" className="btn btn--ghost btn--block" onClick={() => send(true)}>
                 ส่งเรื่องโดยไม่มีรูป

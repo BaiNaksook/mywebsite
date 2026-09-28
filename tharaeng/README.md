@@ -4,7 +4,8 @@
 **เป็นโครงงานของนักเรียน** ไม่ได้ดำเนินการโดย อบต.ท่าแร้ง และเรื่องที่แจ้งไม่ได้ส่งถึง อบต. โดยอัตโนมัติ
 
 - React + Vite + TypeScript, Leaflet + OpenStreetMap
-- Firebase Authentication (Google), Cloud Firestore (เรียลไทม์), Firebase Storage (รูปภาพ), Firebase Hosting
+- Firebase Authentication (Anonymous + Google สำหรับผู้ดูแล), Cloud Firestore (เรียลไทม์ + เก็บรูปแบบย่อ), Firebase Hosting
+- **ใช้แพ็กเกจฟรี (Spark) ได้ทั้งหมด ไม่ต้องผูกบัตรเครดิต** — ไม่ใช้ Cloud Storage
 
 ## โครงสร้างสำคัญ
 
@@ -13,7 +14,6 @@
 | `src/config.ts` | จุดกึ่งกลางแผนที่, กรอบพื้นที่ที่รับแจ้ง, ประเภทปัญหา, ลิงก์เพจ อบต. |
 | `src/lib/reports.ts` | อ่าน/เขียน Firestore — การรับงาน/แจ้งแก้ไข/เปิดใหม่ใช้ transaction |
 | `firestore.rules` | กฎความปลอดภัย (ตรวจสิทธิ์ทุกการเปลี่ยนสถานะฝั่งเซิร์ฟเวอร์) |
-| `storage.rules` | อัปโหลดรูปได้เฉพาะโฟลเดอร์ของตัวเอง, เฉพาะรูปภาพ, ไม่เกิน 5 MB |
 | `firestore.indexes.json` | index ที่หน้าแผนที่ต้องใช้ |
 | `scripts/seed-emulator.mjs` | ข้อมูลตัวอย่าง (เขียนลง Emulator เท่านั้น) |
 | `tests/rules.test.mjs` | ทดสอบกฎความปลอดภัย |
@@ -23,6 +23,7 @@
 
 - `reports/{id}` — ประเภท, ชื่อจุด, รายละเอียด, `lat`/`lng`, ผู้แจ้ง (`reporterUid`, `reporterName`), `photoUrl`, `status` (`open` / `in_progress` / `resolved`), `volunteers` (`{uid: {name, joinedAt}}`), `resolution`, `hidden`, `createdAt`, `updatedAt`
 - `reports/{id}/history/{eventId}` — ประวัติทุกการเปลี่ยนแปลง (เพิ่มได้อย่างเดียว แก้/ลบไม่ได้)
+- `photos/{id}` — รูปประกอบ (JPEG ย่อแล้ว ไม่เกิน ~450 KB เก็บเป็น data URL) เพิ่มได้เฉพาะของตัวเอง แก้/ลบไม่ได้
 - `admins/{uid}` — รายชื่อผู้ดูแล (เพิ่มเองใน Console เท่านั้น)
 
 ### สิทธิ์ที่กฎบังคับ
@@ -52,9 +53,8 @@
      (ระบบสร้างตัวตนประจำเครื่องให้เอง จึงยังกันไม่ให้คนอื่นแก้เรื่องของเราได้)
    - เปิด **Google** → Save — ใช้สำหรับ**ผู้ดูแล**เท่านั้น (ปุ่มอยู่ในหน้า "ข้อมูลชุมชน" หัวข้อ "สำหรับผู้ดูแล")
 3. **Build → Firestore Database → Create database** เลือก location `asia-southeast1` (สิงคโปร์) และเริ่มแบบ production mode
-4. **Build → Storage → Get started** (ต้องใช้แพ็กเกจ Blaze สำหรับโปรเจกต์ใหม่ — ตั้งงบเตือนไว้ได้ ปริมาณการใช้ระดับชุมชนมักอยู่ในโควตาฟรี)
-5. **Project settings (รูปเฟือง) → General → Your apps → เพิ่มแอปแบบ Web (`</>`)** ตั้งชื่ออะไรก็ได้ ไม่ต้องติ๊ก Hosting ตรงนี้
-6. คัดลอกค่าใน `firebaseConfig` ที่แสดงมาใส่ไฟล์ `.env.local` (ข้อ 2 ด้านล่าง)
+4. **Project settings (รูปเฟือง) → General → Your apps → เพิ่มแอปแบบ Web (`</>`)** ตั้งชื่ออะไรก็ได้ ไม่ต้องติ๊ก Hosting ตรงนี้
+5. คัดลอกค่าใน `firebaseConfig` ที่แสดงมาใส่ไฟล์ `.env.local` (ข้อ 2 ด้านล่าง)
 
 ### ค่าที่ต้องนำมาใส่
 
@@ -65,7 +65,6 @@
 | `VITE_FIREBASE_API_KEY` | `apiKey` |
 | `VITE_FIREBASE_AUTH_DOMAIN` | `authDomain` (เช่น `xxx.firebaseapp.com`) |
 | `VITE_FIREBASE_PROJECT_ID` | `projectId` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | `storageBucket` |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | `messagingSenderId` |
 | `VITE_FIREBASE_APP_ID` | `appId` |
 
@@ -104,7 +103,7 @@ npm run dev             # หน้าต่างที่ 3
 ## 3. ทดสอบ
 
 ```bash
-npm run test:rules   # ทดสอบ Security Rules 16 กรณี (รวมการรับงานพร้อมกัน 6 คน)
+npm run test:rules   # ทดสอบ Security Rules 17 กรณี (รวมการรับงานพร้อมกัน 6 คน)
 npm run test:e2e     # เบราว์เซอร์จริง: แจ้งปัญหา → หมุดขึ้นอีกเครื่องแบบเรียลไทม์ → รับช่วย 2 คน → แจ้งแก้ไขแล้ว → สถิติเปลี่ยน → เปิดใหม่
 ```
 
@@ -117,7 +116,7 @@ npm install -g firebase-tools   # หรือใช้ npx firebase
 firebase login
 firebase use <project-id>       # หรือแก้ .firebaserc
 npm run build
-firebase deploy                 # ส่ง Hosting + Firestore rules/indexes + Storage rules
+firebase deploy                 # ส่ง Hosting + Firestore rules/indexes
 ```
 
 หลัง deploy ครั้งแรก:

@@ -11,7 +11,7 @@ export interface Volunteer {
 
 export interface Resolution {
   note: string;
-  photoUrl: string | null;
+  photoId: string | null;
   byUid: string;
   byName: string;
   at: Date | null;
@@ -26,7 +26,7 @@ export interface Report {
   description: string;
   lat: number;
   lng: number;
-  photoUrl: string | null;
+  photoId: string | null;
   status: ReportStatus;
   volunteers: Volunteer[];
   resolution: Resolution | null;

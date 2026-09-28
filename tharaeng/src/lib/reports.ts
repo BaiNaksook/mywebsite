@@ -3,7 +3,9 @@ import {
   doc,
   FieldPath,
   deleteField,
+  getDoc,
   onSnapshot,
+  setDoc,
   orderBy,
   query,
   runTransaction,
@@ -14,8 +16,8 @@ import {
   type DocumentSnapshot,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { db } from '../firebase';
+import { blobToDataUrl } from './image';
 import type { CategoryId, HistoryEvent, HistoryType, Report, ReportStatus, Resolution } from '../types';
 
 const SNAP_OPTS = { serverTimestamps: 'estimate' } as const;
@@ -46,10 +48,10 @@ export function parseReport(snap: QueryDocumentSnapshot<DocumentData> | Document
     description: d.description ?? '',
     lat: Number(d.lat),
     lng: Number(d.lng),
-    photoUrl: d.photoUrl ?? null,
+    photoId: d.photoId ?? null,
     status: d.status ?? 'open',
     volunteers,
-    resolution: r ? { note: r.note, photoUrl: r.photoUrl ?? null, byUid: r.byUid, byName: r.byName, at: toDate(r.at) } : null,
+    resolution: r ? { note: r.note, photoId: r.photoId ?? null, byUid: r.byUid, byName: r.byName, at: toDate(r.at) } : null,
     hidden: Boolean(d.hidden),
     reopenCount: Number(d.reopenCount ?? 0),
     createdAt: toDate(d.createdAt),
@@ -91,29 +93,21 @@ export function subscribeHistory(reportId: string, onData: (events: HistoryEvent
   );
 }
 
-/** อัปโหลดรูป (บีบอัดแล้ว) ไปยัง Storage และคืน URL — ยกเลิกได้ผ่าน signal */
-export function uploadPhoto(
-  folder: 'reports' | 'resolutions',
-  uid: string,
-  reportId: string,
-  blob: Blob,
-  onProgress?: (pct: number) => void,
-  signal?: AbortSignal,
-): Promise<string> {
-  const path = `${folder}/${uid}/${reportId}/${Date.now()}.jpg`;
-  const task = uploadBytesResumable(ref(storage, path), blob, {
-    contentType: 'image/jpeg',
-    cacheControl: 'public, max-age=31536000, immutable',
-  });
-  signal?.addEventListener('abort', () => task.cancel(), { once: true });
-  return new Promise((resolve, reject) => {
-    task.on(
-      'state_changed',
-      (s) => onProgress?.(s.totalBytes ? Math.round((s.bytesTransferred / s.totalBytes) * 100) : 0),
-      reject,
-      () => getDownloadURL(task.snapshot.ref).then(resolve, reject),
-    );
-  });
+/**
+ * เก็บรูป (ย่อแล้ว) เป็นเอกสารแยกในคอลเลกชัน photos แล้วคืน id ไปอ้างอิงในรายงาน
+ * ใช้ Firestore แทน Cloud Storage เพื่อให้ใช้แพ็กเกจฟรี (Spark) ได้
+ */
+export async function savePhoto(uid: string, blob: Blob): Promise<string> {
+  const data = await blobToDataUrl(blob);
+  const ref = doc(collection(db, 'photos'));
+  await setDoc(ref, { ownerUid: uid, data, createdAt: serverTimestamp() });
+  return ref.id;
+}
+
+/** อ่านรูปจากฐานข้อมูล (data URL) */
+export async function loadPhoto(id: string): Promise<string | null> {
+  const snap = await getDoc(doc(db, 'photos', id));
+  return snap.exists() ? String(snap.data().data) : null;
 }
 
 export function newReportId() {
@@ -129,7 +123,7 @@ export interface NewReportInput {
   description: string;
   lat: number;
   lng: number;
-  photoUrl: string | null;
+  photoId: string | null;
 }
 
 /** สร้างรายงานใหม่พร้อมประวัติ "แจ้งปัญหา" ใน batch เดียวกัน */
@@ -145,7 +139,7 @@ export async function createReport(input: NewReportInput) {
     description: input.description,
     lat: input.lat,
     lng: input.lng,
-    photoUrl: input.photoUrl,
+    photoId: input.photoId,
     status: 'open',
     volunteers: {},
     resolution: null,
@@ -205,7 +199,8 @@ async function transact(reportId: string, uid: string, name: string, body: TxBod
     await attempt();
   } catch (e) {
     // กรณีคนกดพร้อมกันมาก ๆ บางครั้งกฎจะประเมินกับข้อมูลที่เพิ่งเปลี่ยน ลองใหม่อีกครั้งด้วยข้อมูลล่าสุด
-    if ((e as { code?: string }).code === 'permission-denied' || (e as { code?: string }).code === 'aborted') {
+    const code = (e as { code?: string }).code;
+    if (code === 'permission-denied' || code === 'aborted' || code === 'failed-precondition') {
       await attempt();
     } else {
       throw e;
@@ -248,7 +243,7 @@ export function resolveReport(
   uid: string,
   name: string,
   note: string,
-  photoUrl: string | null,
+  photoId: string | null,
   isAdmin: boolean,
 ) {
   return transact(reportId, uid, name, (r, history) => {
@@ -259,7 +254,7 @@ export function resolveReport(
     return {
       updates: [
         ['status', 'resolved'],
-        ['resolution', { note, photoUrl, byUid: uid, byName: name, at: serverTimestamp() }],
+        ['resolution', { note, photoId, byUid: uid, byName: name, at: serverTimestamp() }],
       ],
     };
   });

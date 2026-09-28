@@ -89,7 +89,7 @@ export function ReportList({ reports, totalCount, loading, error, selectedId, on
                     <Users size={13} aria-hidden /> {r.volunteers.length}
                   </span>
                 )}
-                {r.photoUrl && (
+                {r.photoId && (
                   <span className="meta-inline" title="มีรูปภาพ">
                     <ImageIcon size={13} aria-label="มีรูปภาพ" />
                   </span>

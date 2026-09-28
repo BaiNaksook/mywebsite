@@ -10,7 +10,7 @@ import {
   resolveReport,
   subscribeHistory,
   thaiError,
-  uploadPhoto,
+  savePhoto,
 } from '../lib/reports';
 import { getSavedName, saveName } from '../lib/storage';
 import { formatDateTime, timeAgo } from '../lib/time';
@@ -18,6 +18,7 @@ import { reportTitle } from '../lib/title';
 import { nearText } from '../lib/nearby';
 import type { HistoryEvent, Report } from '../types';
 import { CategoryIcon } from './icons';
+import { Photo } from './Photo';
 import { PhotoPicker } from './PhotoPicker';
 import { StatusBadge } from './StatusBadge';
 
@@ -92,11 +93,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
         <section className="detail__section resolution">
           <h3>ผลการแก้ไข</h3>
           <p>{report.resolution.note}</p>
-          {report.resolution.photoUrl && (
-            <a href={report.resolution.photoUrl} target="_blank" rel="noopener" className="detail__photo">
-              <img src={report.resolution.photoUrl} alt="รูปหลังแก้ไข" loading="lazy" />
-            </a>
-          )}
+          {report.resolution.photoId && <Photo id={report.resolution.photoId} alt="รูปหลังแก้ไข" />}
           <p className="muted small">
             {report.resolution.byName} แจ้งว่าแก้แล้ว เมื่อ {formatDateTime(report.resolution.at)}
           </p>
@@ -182,11 +179,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
         )}
       </div>
 
-      {report.photoUrl && (
-        <a href={report.photoUrl} target="_blank" rel="noopener" className="detail__photo">
-          <img src={report.photoUrl} alt={`รูปประกอบ: ${reportTitle(report)}`} loading="lazy" />
-        </a>
-      )}
+      {report.photoId && <Photo id={report.photoId} alt={`รูปประกอบ: ${reportTitle(report)}`} />}
 
       <div className="detail__links">
         <a
@@ -327,18 +320,20 @@ function ResolveForm({ report, isAdmin, onCancel, onDone }: { report: Report; is
     if (Object.keys(errs).length) return;
     setErr(null);
     try {
-      let photoUrl: string | null = null;
+      setBusy('กำลังบันทึก…');
+      const uid = (await ensureUser()).uid;
+      let photoId: string | null = null;
       if (photo) {
         if (uploadedRef.current?.blob === photo) {
-          photoUrl = uploadedRef.current.url;
+          photoId = uploadedRef.current.url;
         } else {
-          setBusy('กำลังอัปโหลดรูป… 0%');
-          photoUrl = await uploadPhoto('resolutions', (await ensureUser()).uid, report.id, photo, (p) => setBusy(`กำลังอัปโหลดรูป… ${p}%`));
-          uploadedRef.current = { blob: photo, url: photoUrl };
+          setBusy('กำลังส่งรูป…');
+          photoId = await savePhoto(uid, photo);
+          uploadedRef.current = { blob: photo, url: photoId };
         }
       }
       setBusy('กำลังบันทึก…');
-      await resolveReport(report.id, (await ensureUser()).uid, name.trim(), n, photoUrl, isAdmin);
+      await resolveReport(report.id, uid, name.trim(), n, photoId, isAdmin);
       if (!myName) saveName(name.trim());
       onDone('บันทึกผลแล้ว สถานะเปลี่ยนเป็น “แก้ไขแล้ว”');
     } catch (e2) {

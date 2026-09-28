@@ -36,11 +36,11 @@ service cloud.firestore {
       return c in ['flood', 'garbage', 'road', 'light', 'other'];
     }
 
-    function validPhotoUrl(u) {
-      return u == null || (u is string && u.size() < 2000 && (
-        u.matches('^https://firebasestorage[.]googleapis[.]com/.*')
-        || u.matches('^http://(127[.]0[.]0[.]1|localhost):9199/.*')
-      ));
+    // รูปเก็บเป็นเอกสารแยกใน photos/{id} ต้องมีอยู่จริงและเป็นของผู้เขียนคนเดียวกัน
+    function validPhotoId(id) {
+      return id == null || (id is string && id.size() <= 40
+        && exists(/databases/$(database)/documents/photos/$(id))
+        && get(/databases/$(database)/documents/photos/$(id)).data.ownerUid == request.auth.uid);
     }
 
     function reportPath(reportId) {
@@ -102,12 +102,12 @@ service cloud.firestore {
         )
         && changed().hasOnly(['status', 'resolution', 'updatedAt', 'lastEventId'])
         && request.resource.data.status == 'resolved'
-        && r.keys().hasOnly(['note', 'photoUrl', 'byUid', 'byName', 'at'])
-        && r.keys().hasAll(['note', 'photoUrl', 'byUid', 'byName', 'at'])
+        && r.keys().hasOnly(['note', 'photoId', 'byUid', 'byName', 'at'])
+        && r.keys().hasAll(['note', 'photoId', 'byUid', 'byName', 'at'])
         && r.byUid == request.auth.uid
         && validName(r.byName)
         && validText(r.note, 1000)
-        && validPhotoUrl(r.photoUrl)
+        && validPhotoId(r.photoId)
         && r.at == request.time;
     }
 
@@ -142,11 +142,11 @@ service cloud.firestore {
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
           'reporterUid', 'reporterName', 'category', 'placeName', 'description',
-          'lat', 'lng', 'photoUrl', 'status', 'volunteers', 'resolution',
+          'lat', 'lng', 'photoId', 'status', 'volunteers', 'resolution',
           'hidden', 'reopenCount', 'createdAt', 'updatedAt', 'lastEventId'])
         && request.resource.data.keys().hasAll([
           'reporterUid', 'reporterName', 'category', 'placeName', 'description',
-          'lat', 'lng', 'photoUrl', 'status', 'volunteers', 'resolution',
+          'lat', 'lng', 'photoId', 'status', 'volunteers', 'resolution',
           'hidden', 'reopenCount', 'createdAt', 'updatedAt', 'lastEventId'])
         && request.resource.data.reporterUid == request.auth.uid
         && validName(request.resource.data.reporterName)
@@ -154,7 +154,7 @@ service cloud.firestore {
         && validText(request.resource.data.placeName, 120)
         && validText(request.resource.data.description, 2000)
         && inArea(request.resource.data.lat, request.resource.data.lng)
-        && validPhotoUrl(request.resource.data.photoUrl)
+        && validPhotoId(request.resource.data.photoId)
         && request.resource.data.status == 'open'
         && request.resource.data.volunteers == {}
         && request.resource.data.resolution == null
@@ -196,6 +196,20 @@ service cloud.firestore {
 
         allow update, delete: if false;
       }
+    }
+
+    // รูปประกอบ (ย่อแล้ว เก็บเป็น data URL) — ทุกคนดูได้ เพิ่มได้เฉพาะของตัวเอง แก้/ลบไม่ได้
+    match /photos/{photoId} {
+      allow get: if true;
+      allow list, update, delete: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['ownerUid', 'data', 'createdAt'])
+        && request.resource.data.keys().hasAll(['ownerUid', 'data', 'createdAt'])
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() < 700000
+        && request.resource.data.data[0:23] == 'data:image/jpeg;base64,'
+        && request.resource.data.createdAt == request.time;
     }
 
     // รายชื่อผู้ดูแล: เพิ่มผ่าน Firebase Console เท่านั้น ผู้ใช้อ่านได้เฉพาะของตัวเอง

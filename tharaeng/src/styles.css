@@ -892,6 +892,13 @@ button {
   overflow: hidden;
   background: var(--cream-2);
 }
+.detail__photo-sk {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: 280px;
+  border-radius: 0;
+}
 .detail__photo img {
   display: block;
   width: 100%;
