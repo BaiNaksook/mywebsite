@@ -11,7 +11,7 @@ import { ReportList } from './components/ReportList';
 import { StatsBar } from './components/StatsBar';
 import { USE_EMULATORS } from './firebase';
 import { useReports } from './hooks/useReports';
-import { navigate, useMediaQuery, useRoute } from './hooks/useRoute';
+import { navigate, useMediaQuery, useOnline, useRoute } from './hooks/useRoute';
 import type { CategoryId, ReportStatus } from './types';
 
 export default function App() {
@@ -23,6 +23,7 @@ export default function App() {
   const [focus, setFocus] = useState<{ id: string; nonce: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const mapAnchorRef = useRef<HTMLDivElement>(null);
+  const online = useOnline();
 
   const selectedId = route.name === 'map' ? route.reportId : null;
   const selected = useMemo(() => reports.find((r) => r.id === selectedId) ?? null, [reports, selectedId]);
@@ -63,6 +64,21 @@ export default function App() {
 
   const closeDetail = useCallback(() => navigate('/'), []);
 
+  // คืนโฟกัสไปยังปุ่ม/รายการที่เปิดรายละเอียด เมื่อปิดการ์ด
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const hadSelection = useRef(false);
+  useEffect(() => {
+    if (selectedId && !hadSelection.current) {
+      returnFocusRef.current = document.activeElement as HTMLElement | null;
+    }
+    if (!selectedId && hadSelection.current) {
+      const el = returnFocusRef.current;
+      if (el && el.isConnected) el.focus({ preventScroll: true });
+      returnFocusRef.current = null;
+    }
+    hadSelection.current = !!selectedId;
+  }, [selectedId]);
+
   useEffect(() => {
     if (!selectedId) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeDetail();
@@ -72,10 +88,26 @@ export default function App() {
 
   const openReport = () => navigate('/report');
 
-  const banner = USE_EMULATORS && (
-    <div className="dev-banner" role="note">
-      โหมดพัฒนา: เชื่อมต่อ Firebase Emulator ในเครื่อง — ข้อมูลทั้งหมดเป็นข้อมูลทดสอบ ไม่ใช่ข้อมูลจริง
-    </div>
+  const banner = (
+    <>
+      <button
+        type="button"
+        className="skip-link"
+        onClick={() => document.getElementById('main')?.focus()}
+      >
+        ข้ามไปยังเนื้อหาหลัก
+      </button>
+      {!online && (
+        <div className="offline-banner" role="status">
+          ไม่มีการเชื่อมต่ออินเทอร์เน็ต — ข้อมูลบนแผนที่อาจไม่ใช่ล่าสุด และยังส่งเรื่องไม่ได้
+        </div>
+      )}
+      {USE_EMULATORS && (
+        <div className="dev-banner" role="note">
+          โหมดพัฒนา: เชื่อมต่อ Firebase Emulator ในเครื่อง — ข้อมูลทั้งหมดเป็นข้อมูลทดสอบ ไม่ใช่ข้อมูลจริง
+        </div>
+      )}
+    </>
   );
 
   if (route.name === 'report') {
@@ -83,7 +115,7 @@ export default function App() {
       <>
         {banner}
         <Header onReport={openReport} showReport={false} />
-        <main className="narrow">
+        <main className="narrow" id="main" tabIndex={-1}>
           <ReportFlow existing={reports} onCancel={() => navigate('/')} onViewReport={(id) => select(id)} />
         </main>
         {toastEl(toast)}
@@ -96,7 +128,7 @@ export default function App() {
       <>
         {banner}
         <Header onReport={openReport} showReport={isDesktop} />
-        <main className="narrow">
+        <main className="narrow" id="main" tabIndex={-1}>
           <AboutPage onBack={() => navigate('/')} />
         </main>
       </>
@@ -141,11 +173,16 @@ export default function App() {
     </div>
   );
 
+  const sheetOpen = !isDesktop && !!(detail || missingSelected);
+
   return (
     <>
-      {banner}
-      <Header onReport={openReport} showReport={isDesktop} />
-      <main className="layout">
+      <div inert={sheetOpen || undefined}>
+        {banner}
+        <Header onReport={openReport} showReport={isDesktop} />
+      </div>
+      <main className="layout" id="main" tabIndex={-1} inert={sheetOpen || undefined}>
+        <h1 className="sr-only">ท่าแร้งช่วยกัน — แผนที่แจ้งปัญหาในตำบลท่าแร้ง</h1>
         <aside className="side">
           <StatsBar reports={reports} loading={loading} status={status} onStatus={setStatus} />
           {!isDesktop && (

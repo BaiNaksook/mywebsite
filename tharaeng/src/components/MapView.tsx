@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { AREA_CENTER, AREA_ZOOM, BOUNDARY_GEOJSON_URL, statusLabel } from '../config';
 import { reportTitle } from '../lib/title';
+import { prefersReducedMotion } from '../hooks/useRoute';
 import type { Report, ReportStatus } from '../types';
 import { PIN_GLYPH } from './icons';
 
@@ -31,6 +32,12 @@ export function addBoundary(map: L.Map, fit: boolean) {
       if (fit) map.fitBounds(layer.getBounds(), { padding: [16, 16] });
     })
     .catch((e) => console.warn('โหลดขอบเขตตำบลไม่สำเร็จ', e));
+}
+
+/** เลื่อนแผนที่ — ถ้าผู้ใช้ตั้งค่าลดการเคลื่อนไหว จะย้ายทันทีโดยไม่มีแอนิเมชัน */
+export function moveMap(map: L.Map, center: L.LatLngExpression, zoom: number) {
+  if (prefersReducedMotion()) map.setView(center, zoom, { animate: false });
+  else map.flyTo(center, zoom, { duration: 0.6 });
 }
 
 export function pinIcon(status: ReportStatus, selected = false) {
@@ -141,7 +148,7 @@ export function MapView({ reports, selectedId, onSelect, focus, inset }: Props) 
     const dx = -(inset?.left ?? 0) / 2;
     const dy = (size.y * (inset?.bottomFraction ?? 0)) / 2;
     const point = map.project([r.lat, r.lng], zoom).add([dx, dy]);
-    map.flyTo(map.unproject(point, zoom), zoom, { duration: 0.6 });
+    moveMap(map, map.unproject(point, zoom), zoom);
   }, [focus?.nonce]);
 
   return (
@@ -150,7 +157,7 @@ export function MapView({ reports, selectedId, onSelect, focus, inset }: Props) 
       <button
         type="button"
         className="map-home"
-        onClick={() => mapRef.current?.flyTo(AREA_CENTER, AREA_ZOOM, { duration: 0.6 })}
+        onClick={() => mapRef.current && moveMap(mapRef.current, AREA_CENTER, AREA_ZOOM)}
       >
         กลับไปที่ท่าแร้ง
       </button>

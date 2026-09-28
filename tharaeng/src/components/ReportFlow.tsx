@@ -49,6 +49,8 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
     photo: null,
   }));
   const [errors, setErrors] = useState<Errors>({});
+  const [summaryNonce, setSummaryNonce] = useState(0);
+  const summaryRef = useRef<HTMLDivElement>(null);
   const [submit, setSubmit] = useState<Submit>({ state: 'idle' });
   const reportIdRef = useRef<string | null>(null);
   const uploadedRef = useRef<{ blob: Blob; url: string } | null>(null);
@@ -88,11 +90,32 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
   function next(e?: FormEvent) {
     e?.preventDefault();
     if (!validateStep(step)) {
-      requestAnimationFrame(() => topRef.current?.parentElement?.querySelector<HTMLElement>('.has-error, .form-error')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+      if (step === 1) {
+        // ส่งไม่ผ่าน: ย้ายโฟกัสไปที่สรุปข้อผิดพลาดด้านบน (ข้อความใต้แต่ละช่องยังอยู่)
+        setSummaryNonce((n) => n + 1);
+      } else {
+        requestAnimationFrame(() =>
+          topRef.current?.querySelector<HTMLElement>('.form-error')?.scrollIntoView({ block: 'center' }),
+        );
+      }
       return;
     }
+    setSummaryNonce(0);
     setStep((s) => Math.min(2, s + 1));
   }
+
+  useEffect(() => {
+    if (summaryNonce > 0) summaryRef.current?.focus();
+  }, [summaryNonce]);
+
+  const FIELD_IDS: Record<keyof Errors, string> = {
+    pos: 'field-pos',
+    category: 'field-category',
+    placeName: 'field-placeName',
+    description: 'field-description',
+    reporterName: 'field-reporterName',
+  };
+  const summaryItems = (Object.keys(errors) as (keyof Errors)[]).filter((k) => errors[k]);
 
   async function send() {
     if (!user || !draft.pos || !draft.category) return;
@@ -209,6 +232,28 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
         </form>
       ) : step === 1 ? (
         <form onSubmit={next} noValidate className="form">
+          {summaryNonce > 0 && summaryItems.length > 0 && (
+            <div className="error-summary" ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby="error-summary-title">
+              <h2 id="error-summary-title">มีข้อมูลที่ต้องแก้ไข {summaryItems.length} ช่อง</h2>
+              <ul>
+                {summaryItems.map((k) => (
+                  <li key={k}>
+                    <a
+                      href={`#${FIELD_IDS[k]}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const el = document.getElementById(FIELD_IDS[k]);
+                        el?.scrollIntoView({ block: 'center' });
+                        el?.focus();
+                      }}
+                    >
+                      {errors[k]}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <fieldset className="field">
             <legend className="field__label">ประเภทปัญหา</legend>
             <div className={`cat-grid${errors.category ? ' has-error' : ''}`}>
@@ -217,6 +262,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
                   <input
                     type="radio"
                     name="category"
+                    id={c.id === CATEGORIES[0].id ? 'field-category' : undefined}
                     value={c.id}
                     checked={draft.category === c.id}
                     onChange={() => set('category', c.id)}
@@ -239,8 +285,11 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
               onChange={(e) => set('placeName', e.target.value)}
               placeholder="เช่น ทางแยกท่าแร้ง, หน้าวัด, ซอย 3"
               name="placeName"
+              id="field-placeName"
+              aria-invalid={!!errors.placeName}
+              aria-describedby={errors.placeName ? 'err-placeName' : undefined}
             />
-            {errors.placeName && <span className="form-error">{errors.placeName}</span>}
+            {errors.placeName && <span className="form-error" id="err-placeName">{errors.placeName}</span>}
           </label>
 
           <label className="field">
@@ -253,11 +302,14 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
               onChange={(e) => set('description', e.target.value)}
               placeholder="เช่น น้ำท่วมขังสูงประมาณครึ่งล้อรถ ตั้งแต่ฝนตกเมื่อวาน รถเล็กผ่านลำบาก"
               name="description"
+              id="field-description"
+              aria-invalid={!!errors.description}
+              aria-describedby={errors.description ? 'err-description' : undefined}
             />
             <span className="field__count">
               {draft.description.length}/{LIMITS.description}
             </span>
-            {errors.description && <span className="form-error">{errors.description}</span>}
+            {errors.description && <span className="form-error" id="err-description">{errors.description}</span>}
           </label>
 
           <label className="field">
@@ -270,9 +322,12 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
               placeholder="เช่น นาย ก"
               autoComplete="name"
               name="reporterName"
+              id="field-reporterName"
+              aria-invalid={!!errors.reporterName}
+              aria-describedby={errors.reporterName ? 'err-reporterName' : 'hint-reporterName'}
             />
-            <span className="field__hint">ชื่อนี้จะแสดงต่อสาธารณะ ใช้ชื่อเล่นได้</span>
-            {errors.reporterName && <span className="form-error">{errors.reporterName}</span>}
+            <span className="field__hint" id="hint-reporterName">ชื่อนี้จะแสดงต่อสาธารณะ ใช้ชื่อเล่นได้</span>
+            {errors.reporterName && <span className="form-error" id="err-reporterName">{errors.reporterName}</span>}
           </label>
 
           <PhotoPicker label="รูปภาพประกอบ" value={draft.photo} onChange={(b) => set('photo', b)} />

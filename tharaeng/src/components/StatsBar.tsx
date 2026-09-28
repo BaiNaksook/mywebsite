@@ -22,8 +22,15 @@ export function StatsBar({ reports, loading, status, onStatus }: Props) {
     { id: 'in_progress', label: 'กำลังดำเนินการ', value: s.in_progress },
     { id: 'resolved', label: 'แก้ไขแล้ว', value: s.resolved },
   ];
+  const summary = loading
+    ? ''
+    : `ปัญหาทั้งหมด ${s.all} รายการ รอความช่วยเหลือ ${s.open} กำลังดำเนินการ ${s.in_progress} แก้ไขแล้ว ${s.resolved}`;
   return (
-    <section className="stats" aria-label="สรุปสถิติ">
+    <section className="stats" aria-label="สรุปสถิติ แตะเพื่อกรองตามสถานะ">
+      {/* ประกาศการเปลี่ยนแปลงเป็นประโยคเดียวครบบริบท ไม่ใช่ตัวเลขเดี่ยว ๆ */}
+      <p className="sr-only" role="status" aria-atomic="true">
+        {summary}
+      </p>
       {tiles.map((t) => (
         <button
           key={t.id}
@@ -33,7 +40,7 @@ export function StatsBar({ reports, loading, status, onStatus }: Props) {
           onClick={() => onStatus(status === t.id && t.id !== 'all' ? 'all' : t.id)}
           data-stat={t.id}
         >
-          <span className="stat__value" aria-live="polite">
+          <span className="stat__value">
             {loading ? '–' : t.value.toLocaleString('th-TH')}
           </span>
           <span className="stat__label">

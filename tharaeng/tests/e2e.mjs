@@ -78,6 +78,9 @@ try {
   // กดถัดไปโดยไม่ปักหมุด → ต้องแจ้งเตือนภาษาไทย
   await reporter.getByRole('button', { name: 'ถัดไป: กรอกข้อมูล' }).click();
   await reporter.getByText('กรุณาปักหมุดตำแหน่งที่พบปัญหา').waitFor();
+  // ทางเลือกที่ไม่ต้องแตะแผนที่/ลาก: ปักหมุดที่กึ่งกลางแผนที่
+  await reporter.getByRole('button', { name: 'ปักหมุดที่กึ่งกลางแผนที่' }).click();
+  await reporter.getByText(/พิกัดที่เลือก/).waitFor();
   const box = await reporter.locator('[data-testid="picker-map"]').boundingBox();
   await reporter.mouse.click(box.x + box.width / 2 + 20, box.y + box.height / 2 - 10);
   await reporter.getByText(/พิกัดที่เลือก/).waitFor();
@@ -95,10 +98,16 @@ try {
 
   // ส่งฟอร์มว่าง → ตรวจช่องจำเป็น
   await reporter.getByRole('button', { name: 'ถัดไป: ตรวจสอบข้อมูล' }).click();
-  await reporter.getByText('กรุณาเลือกประเภทปัญหา').waitFor();
-  await reporter.getByText('กรุณาระบุชื่อจุดหรือสถานที่').waitFor();
-  await reporter.getByText('กรุณาเล่ารายละเอียดของปัญหา').waitFor();
-  step('ตรวจช่องจำเป็นและแจ้งข้อผิดพลาดเป็นภาษาไทย');
+  const summary = reporter.locator('.error-summary');
+  await summary.waitFor();
+  assert.equal(await summary.evaluate((el) => el === document.activeElement), true, 'โฟกัสต้องย้ายไปที่สรุปข้อผิดพลาด');
+  for (const t of ['กรุณาเลือกประเภทปัญหา', 'กรุณาระบุชื่อจุดหรือสถานที่', 'กรุณาเล่ารายละเอียดของปัญหา']) {
+    await summary.getByText(t).waitFor();
+    await reporter.locator('.field .form-error', { hasText: t }).waitFor();
+  }
+  await summary.getByRole('link', { name: 'กรุณาระบุชื่อจุดหรือสถานที่' }).click();
+  assert.equal(await reporter.evaluate(() => document.activeElement?.id), 'field-placeName');
+  step('ตรวจช่องจำเป็น: สรุปข้อผิดพลาดภาษาไทยด้านบน (รับโฟกัส ลิงก์ไปที่ช่อง) + ข้อความใต้แต่ละช่อง');
 
   await reporter.locator('.cat-option', { hasText: 'น้ำท่วมขัง' }).click();
   await reporter.locator('input[name="placeName"]').fill('ทางแยกท่าแร้ง (ทดสอบ E2E)');

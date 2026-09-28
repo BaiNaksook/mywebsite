@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { LocateFixed } from 'lucide-react';
+import { Crosshair, LocateFixed } from 'lucide-react';
 import { isInAllowedArea } from '../config';
 import type { Report } from '../types';
-import { addBoundary, createBaseMap } from './MapView';
+import { addBoundary, createBaseMap, moveMap } from './MapView';
 
 interface Props {
   value: { lat: number; lng: number } | null;
@@ -79,7 +79,7 @@ export function LocationPicker({ value, onChange, existing }: Props) {
     } else {
       markerRef.current.setLatLng([lat, lng]);
     }
-    if (pan) map.flyTo([lat, lng], zoom ?? Math.max(map.getZoom(), 17), { duration: 0.6 });
+    if (pan) moveMap(map, [lat, lng], zoom ?? Math.max(map.getZoom(), 17));
     onChangeRef.current({ lat, lng });
   }
 
@@ -109,12 +109,24 @@ export function LocationPicker({ value, onChange, existing }: Props) {
   return (
     <div className="picker">
       <p className="picker__help">
-        แตะบนแผนที่เพื่อปักหมุด แล้ว<strong>ลากหมุด</strong>เพื่อปรับตำแหน่งให้ตรงจุด
+        แตะบนแผนที่เพื่อปักหมุด แล้ว<strong>ลากหมุด</strong>หรือแตะจุดใหม่เพื่อปรับตำแหน่งให้ตรงจุด
       </p>
       <div className="picker__map-wrap">
         <div ref={elRef} className="picker__map" role="region" aria-label="แผนที่สำหรับเลือกตำแหน่ง" data-testid="picker-map" />
+        <span className="picker__crosshair" aria-hidden />
         {!value && <div className="picker__overlay">แตะแผนที่ตรงจุดที่พบปัญหา</div>}
       </div>
+      {/* ทางเลือกแทนการแตะ/ลาก: เลื่อนแผนที่ด้วยปุ่มลูกศรหรือนิ้ว แล้วปักหมุดที่กึ่งกลาง */}
+      <button
+        type="button"
+        className="btn-link picker__keyboard"
+        onClick={() => {
+          const c = mapRef.current?.getCenter();
+          if (c) place(c.lat, c.lng, false);
+        }}
+      >
+        <Crosshair size={16} aria-hidden /> ปักหมุดที่กึ่งกลางแผนที่
+      </button>
 
       {geo === 'asking' ? (
         <div className="notice">
