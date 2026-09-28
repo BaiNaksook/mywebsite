@@ -92,7 +92,7 @@ npm run dev          # เปิด http://localhost:5173
 
 ```bash
 echo "VITE_USE_EMULATORS=true" > .env.development.local
-npm run dev:emulators   # หน้าต่างที่ 1: Auth/Firestore/Storage จำลอง + UI ที่ http://localhost:4000
+npm run dev:emulators   # หน้าต่างที่ 1: Auth/Firestore จำลอง + UI ที่ http://localhost:4000
 npm run seed:emulator   # หน้าต่างที่ 2: ใส่ข้อมูลตัวอย่าง 4 จุด (ติดป้าย “ตัวอย่าง”)
 npm run dev             # หน้าต่างที่ 3
 ```
