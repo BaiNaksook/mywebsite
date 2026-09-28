@@ -72,9 +72,9 @@ try {
 
   // 1) แจ้งปัญหา
   await reporter.goto(URL_BASE + '#/report');
-  await signIn(reporter, reporter.locator('.flow'), 'reporter@example.com');
   await reporter.waitForSelector('[data-testid="picker-map"]');
-  step('ผู้แจ้งเข้าสู่ระบบ');
+  assert.equal(await reporter.getByRole('button', { name: /เข้าสู่ระบบ/ }).count(), 0, 'ต้องไม่มีหน้าล็อกอิน');
+  step('เปิดฟอร์มแจ้งปัญหาได้ทันที ไม่ต้องล็อกอิน');
 
   // กดถัดไปโดยไม่ปักหมุด → ต้องแจ้งเตือนภาษาไทย
   await reporter.getByRole('button', { name: 'ถัดไป: กรอกข้อมูล' }).click();
@@ -146,7 +146,6 @@ try {
   const card = helper.locator('.float-card');
   await card.getByRole('heading', { name: 'น้ำท่วมขัง หน้า อบต.ท่าแร้ง (ทดสอบ E2E)' }).waitFor();
   await card.locator('.detail__photo img').waitFor();
-  await signIn(helper, card, 'helper@example.com');
   await card.getByRole('button', { name: 'รับช่วยเหลือ' }).click();
   await card.locator('input[name="helperName"]').fill('นาย ข');
   await card.getByRole('button', { name: 'ยืนยันรับช่วยเหลือ' }).click();

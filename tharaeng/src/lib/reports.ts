@@ -297,6 +297,8 @@ export function thaiError(e: unknown): string {
   if (!navigator.onLine) return 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต ตรวจสอบสัญญาณแล้วลองอีกครั้ง';
   if (code.includes('permission-denied') || code.includes('unauthorized'))
     return 'ระบบไม่อนุญาตให้ทำรายการนี้ อาจเป็นเพราะสถานะเพิ่งเปลี่ยน ลองรีเฟรชหน้าแล้วลองใหม่';
+  if (code.includes('admin-restricted-operation') || code.includes('operation-not-allowed'))
+    return 'เว็บยังไม่ได้เปิดให้ใช้งานแบบไม่ต้องเข้าสู่ระบบ (ผู้ดูแลต้องเปิด Anonymous ใน Firebase Authentication)';
   if (code.includes('unauthenticated')) return 'หลุดจากระบบ เข้าสู่ระบบอีกครั้งแล้วลองใหม่';
   if (code.includes('unavailable') || code.includes('network') || code.includes('retry-limit'))
     return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองอีกครั้งในอีกสักครู่';

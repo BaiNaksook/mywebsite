@@ -12,7 +12,6 @@ import type { CategoryId, Report } from '../types';
 import { CategoryIcon } from './icons';
 import { LocationPicker } from './LocationPicker';
 import { PhotoPicker } from './PhotoPicker';
-import { SignInCard } from './SignInCard';
 
 interface Props {
   existing: Report[];
@@ -41,7 +40,7 @@ type Submit =
 const STEPS = ['เลือกตำแหน่ง', 'กรอกข้อมูล', 'ตรวจสอบและส่ง'];
 
 export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
-  const { user, ready } = useAuth();
+  const { user, ensureUser } = useAuth();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(() => ({
     pos: null,
@@ -113,7 +112,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
   }
 
   useEffect(() => {
-    if (user && !draft.reporterName) setDraft((d) => ({ ...d, reporterName: user.displayName ?? '' }));
+    if (user && !user.isAnonymous && !draft.reporterName) setDraft((d) => ({ ...d, reporterName: user.displayName ?? '' }));
   }, [user, draft.reporterName]);
 
   useEffect(() => {
@@ -174,7 +173,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
   const summaryItems = (Object.keys(errors) as (keyof Errors)[]).filter((k) => errors[k]);
 
   async function send(withoutPhoto = false) {
-    if (!user || !draft.pos || !draft.category) return;
+    if (!draft.pos || !draft.category) return;
     if (!navigator.onLine) {
       setSubmit({ state: 'error', message: 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต ข้อมูลที่กรอกไว้ยังอยู่ ต่อสัญญาณได้แล้วกดส่งอีกครั้ง' });
       return;
@@ -183,6 +182,8 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
     let slowTimer: number | undefined;
     let stallTimer: number | undefined;
     try {
+      setSubmit({ state: 'saving', slow: false });
+      const user = await ensureUser();
       let photoUrl: string | null = null;
       if (draft.photo && !withoutPhoto) {
         if (uploadedRef.current?.blob === draft.photo) {
@@ -330,13 +331,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
         </div>
       )}
 
-      {!ready ? (
-        <p className="muted">กำลังตรวจสอบการเข้าสู่ระบบ…</p>
-      ) : !user ? (
-        <div className="card">
-          <SignInCard reason="เข้าสู่ระบบก่อนแจ้งปัญหา เพื่อยืนยันว่าผู้แจ้งเป็นคนจริงและป้องกันการแก้ไขข้อมูลโดยผู้อื่น" />
-        </div>
-      ) : step === 0 ? (
+      {step === 0 ? (
         <form onSubmit={next} noValidate>
           <LocationPicker value={draft.pos} onChange={(v) => set('pos', v)} existing={existing} />
           {errors.pos && (
@@ -491,6 +486,12 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
               แก้ข้อมูล
             </button>
           </div>
+
+          <ul className="trust-list">
+            <li>ไม่ต้องสมัครหรือล็อกอิน ไม่ขอเลขบัตรประชาชน ไม่ขอข้อมูลบัญชีธนาคาร</li>
+            <li>ชื่อ รายละเอียด รูป และหมุด จะแสดงให้ทุกคนเห็น</li>
+            <li>เครื่องนี้จะจำไว้ว่าคุณเป็นผู้แจ้ง เพื่อให้เปิดเรื่องนี้อีกครั้งได้ถ้ายังไม่ได้แก้จริง</li>
+          </ul>
 
           {submit.state === 'error' && (
             <div className="notice notice--error" role="alert">

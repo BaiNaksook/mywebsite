@@ -23,7 +23,7 @@ export function Header({ onReport, showReport }: { onReport: () => void; showRep
           <Info size={18} aria-hidden />
           <span>ข้อมูลชุมชน</span>
         </a>
-        {user && (
+        {user && !user.isAnonymous && (
           <button type="button" className="nav-link" onClick={signOut} title={user.email ?? undefined}>
             <LogOut size={18} aria-hidden />
             <span>ออกจากระบบ{isAdmin ? ' (ผู้ดูแล)' : ''}</span>

@@ -19,7 +19,6 @@ import { nearText } from '../lib/nearby';
 import type { HistoryEvent, Report } from '../types';
 import { CategoryIcon } from './icons';
 import { PhotoPicker } from './PhotoPicker';
-import { SignInCard } from './SignInCard';
 import { StatusBadge } from './StatusBadge';
 
 type Mode = 'view' | 'join' | 'resolve' | 'reopen' | 'hide' | 'leave';
@@ -31,7 +30,7 @@ interface Props {
 }
 
 export function ReportDetail({ report, onClose, onToast }: Props) {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, ensureUser } = useAuth();
   const [mode, setMode] = useState<Mode>('view');
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -105,11 +104,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
       )}
 
       <div className="detail__actions">
-        {!user ? (
-          report.status !== 'resolved' ? (
-            <SignInCard reason="เข้าสู่ระบบก่อน เพื่อรับช่วยเหลือหรืออัปเดตสถานะของจุดนี้" />
-          ) : null
-        ) : mode === 'join' ? (
+        {mode === 'join' ? (
           <JoinForm report={report} onCancel={() => setMode('view')} onDone={(m) => { setMode('view'); onToast(m); }} />
         ) : mode === 'resolve' ? (
           <ResolveForm report={report} isAdmin={isAdmin} onCancel={() => setMode('view')} onDone={(m) => { setMode('view'); onToast(m); }} />
@@ -120,7 +115,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
             required
             submitLabel="เปิดปัญหาอีกครั้ง"
             onCancel={() => setMode('view')}
-            onSubmit={(reason, name) => reopenReport(report.id, user.uid, name, reason, isAdmin)}
+            onSubmit={async (reason, name) => reopenReport(report.id, (await ensureUser()).uid, name, reason, isAdmin)}
             onDone={() => { setMode('view'); onToast('เปิดปัญหาอีกครั้งแล้ว สถานะกลับเป็น “รอความช่วยเหลือ”'); }}
           />
         ) : mode === 'hide' ? (
@@ -131,7 +126,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
             submitLabel="ซ่อนรายงาน"
             danger
             onCancel={() => setMode('view')}
-            onSubmit={(reason, name) => hideReport(report.id, user.uid, name, reason || null, isAdmin)}
+            onSubmit={async (reason, name) => hideReport(report.id, (await ensureUser()).uid, name, reason || null, isAdmin)}
             onDone={() => { onToast('ซ่อนรายงานแล้ว'); onClose(); }}
           />
         ) : mode === 'leave' ? (
@@ -213,7 +208,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
 
 function useName() {
   const { user } = useAuth();
-  return useState(() => getSavedName() || user?.displayName || '');
+  return useState(() => getSavedName() || (user && !user.isAnonymous ? user.displayName : '') || '');
 }
 
 function NameField({ value, onChange, error, label = 'ชื่อที่จะแสดง' }: { value: string; onChange: (v: string) => void; error?: string; label?: string }) {
@@ -235,7 +230,7 @@ function NameField({ value, onChange, error, label = 'ชื่อที่จ�
 }
 
 function JoinForm({ report, onCancel, onDone }: { report: Report; onCancel: () => void; onDone: (msg: string) => void }) {
-  const { user } = useAuth();
+  const { ensureUser } = useAuth();
   const [name, setName] = useName();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -249,7 +244,7 @@ function JoinForm({ report, onCancel, onDone }: { report: Report; onCancel: () =
     setBusy(true);
     setErr(null);
     try {
-      await joinReport(report.id, user!.uid, n);
+      await joinReport(report.id, (await ensureUser()).uid, n);
       saveName(n);
       onDone('รับช่วยเหลือแล้ว ขอบคุณที่ช่วยชุมชน');
     } catch (e2) {
@@ -277,7 +272,7 @@ function JoinForm({ report, onCancel, onDone }: { report: Report; onCancel: () =
 }
 
 function ConfirmLeave({ report, onCancel, onDone }: { report: Report; onCancel: () => void; onDone: (msg: string) => void }) {
-  const { user } = useAuth();
+  const { user, ensureUser } = useAuth();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const myName = report.volunteers.find((v) => v.uid === user?.uid)?.name ?? '';
@@ -285,7 +280,7 @@ function ConfirmLeave({ report, onCancel, onDone }: { report: Report; onCancel: 
     setBusy(true);
     setErr(null);
     try {
-      await leaveReport(report.id, user!.uid, myName || 'จิตอาสา');
+      await leaveReport(report.id, (await ensureUser()).uid, myName || 'จิตอาสา');
       onDone('ถอนตัวแล้ว');
     } catch (e) {
       setErr(thaiError(e));
@@ -311,7 +306,7 @@ function ConfirmLeave({ report, onCancel, onDone }: { report: Report; onCancel: 
 }
 
 function ResolveForm({ report, isAdmin, onCancel, onDone }: { report: Report; isAdmin: boolean; onCancel: () => void; onDone: (msg: string) => void }) {
-  const { user } = useAuth();
+  const { user, ensureUser } = useAuth();
   const myName = report.volunteers.find((v) => v.uid === user?.uid)?.name;
   const [savedName, setSavedName] = useName();
   const name = myName ?? savedName;
@@ -338,12 +333,12 @@ function ResolveForm({ report, isAdmin, onCancel, onDone }: { report: Report; is
           photoUrl = uploadedRef.current.url;
         } else {
           setBusy('กำลังอัปโหลดรูป… 0%');
-          photoUrl = await uploadPhoto('resolutions', user!.uid, report.id, photo, (p) => setBusy(`กำลังอัปโหลดรูป… ${p}%`));
+          photoUrl = await uploadPhoto('resolutions', (await ensureUser()).uid, report.id, photo, (p) => setBusy(`กำลังอัปโหลดรูป… ${p}%`));
           uploadedRef.current = { blob: photo, url: photoUrl };
         }
       }
       setBusy('กำลังบันทึก…');
-      await resolveReport(report.id, user!.uid, name.trim(), n, photoUrl, isAdmin);
+      await resolveReport(report.id, (await ensureUser()).uid, name.trim(), n, photoUrl, isAdmin);
       if (!myName) saveName(name.trim());
       onDone('บันทึกผลแล้ว สถานะเปลี่ยนเป็น “แก้ไขแล้ว”');
     } catch (e2) {

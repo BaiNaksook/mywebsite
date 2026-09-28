@@ -13,7 +13,7 @@ export function SignInCard({ reason }: { reason: string }) {
 
   return (
     <div className="signin">
-      <p className="signin__text">{reason}</p>
+      {reason && <p className="signin__text">{reason}</p>}
       <button type="button" className="btn btn--primary btn--block" onClick={signIn} disabled={signingIn}>
         <LogIn size={18} aria-hidden />
         {signingIn ? 'กำลังเปิดหน้าเข้าสู่ระบบ…' : 'เข้าสู่ระบบด้วยบัญชี Google'}
@@ -33,10 +33,7 @@ export function SignInCard({ reason }: { reason: string }) {
         <p className="hint">ถ้าเข้าสู่ระบบไม่ได้ ให้กดเมนู ⋯ มุมขวาบน แล้วเลือก “เปิดในเบราว์เซอร์” (Chrome หรือ Safari)</p>
       )}
       {signInTestAccount && <TestAccountForm onSubmit={signInTestAccount} />}
-      <ul className="trust-list">
-        <li>ไม่ขอเลขบัตรประชาชน ไม่ขอข้อมูลบัญชีธนาคาร</li>
-        <li>อีเมลและชื่อบัญชี Google จะไม่แสดงบนเว็บ บนเว็บจะเห็นเฉพาะชื่อที่กรอกเอง</li>
-      </ul>
+      <p className="hint">อีเมลและชื่อบัญชี Google จะไม่แสดงบนเว็บ</p>
     </div>
   );
 }
@@ -67,4 +64,22 @@ function TestAccountForm({ onSubmit }: { onSubmit: (email: string, name: string)
       </button>
     </form>
   );
+}
+
+/** เข้าสู่ระบบด้วย Google สำหรับผู้ดูแลเท่านั้น (ผู้ใช้ทั่วไปไม่ต้องล็อกอิน) */
+export function AdminSignIn() {
+  const { user, isAdmin, signOut } = useAuth();
+  if (user && !user.isAnonymous) {
+    return (
+      <div className="signin">
+        <p className="signin__text">
+          เข้าสู่ระบบแล้ว{isAdmin ? ' (ผู้ดูแล)' : ' — บัญชีนี้ยังไม่ได้รับสิทธิ์ผู้ดูแล'}
+        </p>
+        <button type="button" className="btn btn--ghost" onClick={signOut}>
+          ออกจากระบบ
+        </button>
+      </div>
+    );
+  }
+  return <SignInCard reason="" />;
 }

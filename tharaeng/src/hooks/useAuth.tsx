@@ -4,6 +4,7 @@ import {
   getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
+  signInAnonymously,
   signInWithCredential,
   signInWithRedirect,
   signOut as fbSignOut,
@@ -20,6 +21,8 @@ interface AuthState {
   error: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** คืนผู้ใช้ปัจจุบัน ถ้ายังไม่มีจะสร้างตัวตนแบบไม่ระบุชื่อให้เครื่องนี้ (ไม่ต้องล็อกอิน) */
+  ensureUser: () => Promise<User>;
   /** เฉพาะโหมด Emulator: เข้าสู่ระบบด้วยบัญชี Google จำลอง (ไม่ต้องต่ออินเทอร์เน็ต) */
   signInTestAccount: ((email: string, name: string) => Promise<void>) | null;
 }
@@ -74,6 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => fbSignOut(auth), []);
 
+  const ensureUser = useCallback(async () => {
+    if (auth.currentUser) return auth.currentUser;
+    const cred = await signInAnonymously(auth);
+    return cred.user;
+  }, []);
+
   const signInTestAccount = useMemo(
     () =>
       USE_EMULATORS
@@ -87,8 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ user, ready, isAdmin, signingIn, error, signIn, signOut, signInTestAccount }),
-    [user, ready, isAdmin, signingIn, error, signIn, signOut, signInTestAccount],
+    () => ({ user, ready, isAdmin, signingIn, error, signIn, signOut, signInTestAccount, ensureUser }),
+    [user, ready, isAdmin, signingIn, error, signIn, signOut, signInTestAccount, ensureUser],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

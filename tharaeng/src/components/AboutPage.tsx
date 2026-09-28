@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import { STATUSES } from '../config';
 import { StatusIcon } from './icons';
 import { EmergencyNumbers, FacebookButton, StudentProjectNote } from './Community';
+import { AdminSignIn } from './SignInCard';
 
 export function AboutPage({ onBack }: { onBack: () => void }) {
   return (
@@ -48,8 +49,15 @@ export function AboutPage({ onBack }: { onBack: () => void }) {
         <h2>ข้อมูลและความเป็นส่วนตัว</h2>
         <p>
           ชื่อที่คุณกรอก รายละเอียด รูปภาพ และพิกัดของหมุด จะแสดงต่อสาธารณะ ไม่ควรใส่เบอร์โทรศัพท์หรือข้อมูลส่วนตัวของผู้อื่น
-          การเข้าสู่ระบบใช้เพื่อยืนยันตัวตนและป้องกันการแก้ไขข้อมูลโดยผู้อื่น
         </p>
+        <p>
+          ใช้งานได้โดยไม่ต้องสมัครหรือล็อกอิน แค่ใส่ชื่อ เว็บจะจำเครื่องนี้ไว้แบบไม่ระบุตัวตน
+          เพื่อให้เฉพาะคุณแก้หรือเปิดเรื่องของตัวเองได้ ถ้าล้างข้อมูลเบราว์เซอร์หรือเปลี่ยนเครื่อง จะจัดการเรื่องเดิมจากเครื่องใหม่ไม่ได้
+        </p>
+
+        <h2>สำหรับผู้ดูแล</h2>
+        <p className="muted small">ผู้ดูแลที่ได้รับสิทธิ์ต้องเข้าสู่ระบบด้วย Google เพื่อซ่อนรายงานที่ไม่เหมาะสมหรือเปิดปัญหาอีกครั้ง ผู้ใช้ทั่วไปไม่ต้องทำขั้นตอนนี้</p>
+        <AdminSignIn />
         <p className="muted small">
           แผนที่จาก © ผู้ร่วมพัฒนา{' '}
           <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">

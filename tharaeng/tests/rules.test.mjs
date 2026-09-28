@@ -118,6 +118,17 @@ test('ทุกคนอ่านรายงานได้โดยไม่�
   await assertFails(setDoc(doc(db(null), 'reports', 'x'), newReport('anon')));
 });
 
+test('ผู้ใช้แบบไม่ต้องล็อกอิน (anonymous) แจ้งปัญหาได้ แต่แก้ของคนอื่นไม่ได้', async () => {
+  const anon = env.authenticatedContext('anon-device-1', { firebase: { sign_in_provider: 'anonymous' } }).firestore();
+  const reportRef = doc(collection(anon, 'reports'));
+  const evRef = doc(collection(reportRef, 'history'));
+  const batch = writeBatch(anon);
+  batch.set(reportRef, { ...newReport('anon-device-1'), lastEventId: evRef.id });
+  batch.set(evRef, { type: 'created', byUid: 'anon-device-1', byName: 'พี่ต้อย', at: serverTimestamp(), note: null, fromStatus: null, toStatus: 'open' });
+  await assertSucceeds(batch.commit());
+  await assertFails(updateDoc(doc(db('anon-device-2'), 'reports', reportRef.id), { description: 'แก้มั่ว' }));
+});
+
 test('แจ้งปัญหาได้เมื่อเข้าสู่ระบบ และต้องเป็นชื่อ uid ของตัวเอง', async () => {
   await assertSucceeds(createReport('alice'));
   await assertFails(createReport('alice', { reporterUid: 'bob' }));
