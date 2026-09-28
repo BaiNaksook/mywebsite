@@ -43,6 +43,9 @@
 
 ## 1. ตั้งค่าโปรเจกต์ใน Firebase Console (ทำครั้งเดียว)
 
+> โปรเจกต์นี้ผูกกับ Firebase project **`tha-raeng-chuai-kan`** แล้ว (ค่า config อยู่ใน `.env` และ `.firebaserc`)
+> ยังต้องเปิดบริการในข้อ 2–4 ด้านล่างใน Console ให้ครบก่อน deploy
+
 1. ไปที่ <https://console.firebase.google.com> → **Add project** ตั้งชื่อ เช่น `tharaeng-chuaykan`
 2. **Build → Authentication → Get started → Sign-in method → Google → Enable** (ใส่อีเมลติดต่อของโปรเจกต์) → Save
 3. **Build → Firestore Database → Create database** เลือก location `asia-southeast1` (สิงคโปร์) และเริ่มแบบ production mode
