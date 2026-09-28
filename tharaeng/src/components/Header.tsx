@@ -15,7 +15,7 @@ export function Header({ onReport, showReport }: { onReport: () => void; showRep
         </span>
         <span className="brand__text">
           <span className="brand__name">ท่าแร้งช่วยกัน</span>
-          <span className="brand__sub">ต.ท่าแร้ง อ.บ้านแหลม จ.เพชรบุรี</span>
+          <span className="brand__sub">โครงงานนักเรียน ตำบลท่าแร้ง บ้านแหลม</span>
         </span>
       </a>
       <nav className="topbar__nav">

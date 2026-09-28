@@ -51,6 +51,8 @@ if (firebaseReady) {
   auth.languageCode = 'th';
   db = getFirestore(app);
   storage = getStorage(app);
+  // สัญญาณอ่อน: อย่ารอลองใหม่นาน 10 นาทีตามค่าเริ่มต้น ให้ผู้ใช้เลือกส่งโดยไม่มีรูปได้เร็วขึ้น
+  storage.maxUploadRetryTime = 60_000;
 
   if (USE_EMULATORS) {
     const host = window.location.hostname || '127.0.0.1';

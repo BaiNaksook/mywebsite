@@ -33,7 +33,10 @@ export function SignInCard({ reason }: { reason: string }) {
         <p className="hint">ถ้าเข้าสู่ระบบไม่ได้ ให้กดเมนู ⋯ มุมขวาบน แล้วเลือก “เปิดในเบราว์เซอร์” (Chrome หรือ Safari)</p>
       )}
       {signInTestAccount && <TestAccountForm onSubmit={signInTestAccount} />}
-      <p className="hint">เราใช้ชื่อบัญชีเพื่อยืนยันตัวตนเท่านั้น ชื่อที่แสดงบนเว็บคือชื่อที่คุณกรอกเอง</p>
+      <ul className="trust-list">
+        <li>ไม่ขอเลขบัตรประชาชน ไม่ขอข้อมูลบัญชีธนาคาร</li>
+        <li>อีเมลและชื่อบัญชี Google จะไม่แสดงบนเว็บ บนเว็บจะเห็นเฉพาะชื่อที่กรอกเอง</li>
+      </ul>
     </div>
   );
 }

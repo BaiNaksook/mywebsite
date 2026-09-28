@@ -49,6 +49,7 @@ export function StatsBar({ reports, loading, status, onStatus }: Props) {
           </span>
         </button>
       ))}
+      <p className="stats__hint">แตะตัวเลขเพื่อดูเฉพาะสถานะนั้น แตะซ้ำเพื่อดูทั้งหมด</p>
     </section>
   );
 }

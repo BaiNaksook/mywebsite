@@ -113,7 +113,7 @@ export function LocationPicker({ value, onChange, existing }: Props) {
       </p>
       <div className="picker__map-wrap">
         <div ref={elRef} className="picker__map" role="region" aria-label="แผนที่สำหรับเลือกตำแหน่ง" data-testid="picker-map" />
-        <span className="picker__crosshair" aria-hidden />
+        {!value && <span className="picker__crosshair" aria-hidden />}
         {!value && <div className="picker__overlay">แตะแผนที่ตรงจุดที่พบปัญหา</div>}
       </div>
       {/* ทางเลือกแทนการแตะ/ลาก: เลื่อนแผนที่ด้วยปุ่มลูกศรหรือนิ้ว แล้วปักหมุดที่กึ่งกลาง */}
@@ -131,7 +131,8 @@ export function LocationPicker({ value, onChange, existing }: Props) {
       {geo === 'asking' ? (
         <div className="notice">
           <p>
-            เว็บจะขอสิทธิ์เข้าถึงตำแหน่งของคุณ<strong>เพื่อปักหมุดครั้งนี้เท่านั้น</strong> ไม่มีการเก็บตำแหน่งของคุณไว้
+            โทรศัพท์จะถามว่าอนุญาตให้ใช้ตำแหน่งไหม เราใช้เพื่อวางหมุดครั้งนี้เท่านั้น
+            <strong>จุดที่ปักจะแสดงต่อสาธารณะ</strong> ถ้าตอนนี้อยู่ที่บ้าน ลากหมุดไปที่ถนนหรือจุดที่พบปัญหาแทนได้
           </p>
           <div className="btn-row">
             <button type="button" className="btn btn--ghost" onClick={() => setGeo('idle')}>
@@ -170,7 +171,7 @@ export function LocationPicker({ value, onChange, existing }: Props) {
       )}
       {outside && (
         <p className="form-error" role="alert">
-          หมุดอยู่นอกตำบลท่าแร้ง กรุณาเลื่อนหมุดให้อยู่ในเส้นประที่เป็นเขตตำบล
+          หมุดอยู่นอกตำบลท่าแร้ง เลื่อนหมุดให้อยู่ในเส้นประที่เป็นเขตตำบล
         </p>
       )}
       {value && !outside && (

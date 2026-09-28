@@ -1,7 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import { STATUSES } from '../config';
 import { StatusIcon } from './icons';
-import { FacebookButton, StudentProjectNote } from './Community';
+import { EmergencyNumbers, FacebookButton, StudentProjectNote } from './Community';
 
 export function AboutPage({ onBack }: { onBack: () => void }) {
   return (
@@ -43,7 +43,7 @@ export function AboutPage({ onBack }: { onBack: () => void }) {
         <h2>ช่องทางชุมชน</h2>
         <FacebookButton />
         <StudentProjectNote />
-        <p>เรื่องเร่งด่วนหรืออันตราย เช่น สายไฟขาด ไฟไหม้ หรือมีผู้บาดเจ็บ ให้ติดตามข่าวสารและติดต่อหน่วยงานที่เกี่ยวข้องโดยตรง</p>
+        <EmergencyNumbers />
 
         <h2>ข้อมูลและความเป็นส่วนตัว</h2>
         <p>

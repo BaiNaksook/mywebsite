@@ -76,7 +76,7 @@ export function ReportList({ reports, totalCount, loading, error, selectedId, on
             onClick={() => onSelect(r.id)}
             data-report-id={r.id}
           >
-            <span className={`report-item__icon cat-icon cat-icon--${r.status}`} aria-hidden>
+            <span className="report-item__icon cat-icon" aria-hidden>
               <CategoryIcon id={r.category} size={20} />
             </span>
             <span className="report-item__body">

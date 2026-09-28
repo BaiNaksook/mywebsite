@@ -91,16 +91,21 @@ export function subscribeHistory(reportId: string, onData: (events: HistoryEvent
   );
 }
 
-/** อัปโหลดรูป (บีบอัดแล้ว) ไปยัง Storage และคืน URL */
+/** อัปโหลดรูป (บีบอัดแล้ว) ไปยัง Storage และคืน URL — ยกเลิกได้ผ่าน signal */
 export function uploadPhoto(
   folder: 'reports' | 'resolutions',
   uid: string,
   reportId: string,
   blob: Blob,
   onProgress?: (pct: number) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   const path = `${folder}/${uid}/${reportId}/${Date.now()}.jpg`;
-  const task = uploadBytesResumable(ref(storage, path), blob, { contentType: 'image/jpeg' });
+  const task = uploadBytesResumable(ref(storage, path), blob, {
+    contentType: 'image/jpeg',
+    cacheControl: 'public, max-age=31536000, immutable',
+  });
+  signal?.addEventListener('abort', () => task.cancel(), { once: true });
   return new Promise((resolve, reject) => {
     task.on(
       'state_changed',
@@ -292,10 +297,10 @@ export function thaiError(e: unknown): string {
   if (!navigator.onLine) return 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต ตรวจสอบสัญญาณแล้วลองอีกครั้ง';
   if (code.includes('permission-denied') || code.includes('unauthorized'))
     return 'ระบบไม่อนุญาตให้ทำรายการนี้ อาจเป็นเพราะสถานะเพิ่งเปลี่ยน ลองรีเฟรชหน้าแล้วลองใหม่';
-  if (code.includes('unauthenticated')) return 'กรุณาเข้าสู่ระบบอีกครั้ง';
+  if (code.includes('unauthenticated')) return 'หลุดจากระบบ เข้าสู่ระบบอีกครั้งแล้วลองใหม่';
   if (code.includes('unavailable') || code.includes('network') || code.includes('retry-limit'))
     return 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองอีกครั้งในอีกสักครู่';
   if (code.includes('quota')) return 'พื้นที่จัดเก็บเต็มชั่วคราว ลองใหม่ภายหลัง';
   if (code.includes('failed-precondition')) return 'ฐานข้อมูลยังตั้งค่าไม่ครบ (เช่น ยังไม่ได้สร้าง index) ติดต่อผู้ดูแลเว็บ';
-  return 'เกิดข้อผิดพลาดบางอย่าง ลองอีกครั้ง';
+  return 'ยังบันทึกไม่ได้ ข้อมูลที่กรอกไว้ยังอยู่ ลองกดอีกครั้ง';
 }

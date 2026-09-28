@@ -5,6 +5,8 @@ import { isInTambon } from '../lib/geo';
 import { useAuth } from '../hooks/useAuth';
 import { createReport, newReportId, thaiError, uploadPhoto } from '../lib/reports';
 import { getSavedName, saveName } from '../lib/storage';
+import { clearDraft, loadDraftFields, loadDraftPhoto, saveDraftFields, saveDraftPhoto } from '../lib/draft';
+import { nearText } from '../lib/nearby';
 import { reportTitle } from '../lib/title';
 import type { CategoryId, Report } from '../types';
 import { CategoryIcon } from './icons';
@@ -31,7 +33,7 @@ type Errors = Partial<Record<'pos' | 'category' | 'placeName' | 'description' | 
 
 type Submit =
   | { state: 'idle' }
-  | { state: 'uploading'; pct: number }
+  | { state: 'uploading'; pct: number; stalled?: boolean }
   | { state: 'saving'; slow: boolean }
   | { state: 'success' }
   | { state: 'error'; message: string };
@@ -56,6 +58,59 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
   const reportIdRef = useRef<string | null>(null);
   const uploadedRef = useRef<{ blob: Blob; url: string } | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  const [restored, setRestored] = useState(false);
+  const draftLoadedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const skipPhotoRef = useRef(false);
+  const lastProgressRef = useRef(0);
+
+  // กู้ร่างที่ค้างไว้ (ถ้ามี)
+  useEffect(() => {
+    const saved = loadDraftFields();
+    if (saved && (saved.pos || saved.description || saved.placeName || saved.category)) {
+      setDraft((d) => ({
+        ...d,
+        pos: saved.pos,
+        category: (saved.category as CategoryId | null) ?? null,
+        placeName: saved.placeName,
+        description: saved.description,
+        reporterName: saved.reporterName || d.reporterName,
+      }));
+      setStep(Math.min(saved.step, 2));
+      setRestored(true);
+      if (saved.hasPhoto) {
+        void loadDraftPhoto().then((b) => b && setDraft((d) => ({ ...d, photo: b })));
+      }
+    }
+    draftLoadedRef.current = true;
+  }, []);
+
+  // บันทึกร่างทุกครั้งที่แก้
+  useEffect(() => {
+    if (!draftLoadedRef.current) return;
+    saveDraftFields({
+      step,
+      pos: draft.pos,
+      category: draft.category,
+      placeName: draft.placeName,
+      description: draft.description,
+      reporterName: draft.reporterName,
+      hasPhoto: !!draft.photo,
+    });
+  }, [draft.pos, draft.category, draft.placeName, draft.description, draft.reporterName, draft.photo, step]);
+
+  useEffect(() => {
+    if (!draftLoadedRef.current) return;
+    void saveDraftPhoto(draft.photo);
+  }, [draft.photo]);
+
+  function startOver() {
+    clearDraft();
+    setRestored(false);
+    setDraft({ pos: null, category: null, placeName: '', description: '', reporterName: getSavedName(), photo: null });
+    setErrors({});
+    setStep(0);
+  }
 
   useEffect(() => {
     if (user && !draft.reporterName) setDraft((d) => ({ ...d, reporterName: user.displayName ?? '' }));
@@ -74,15 +129,15 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
   function validateStep(s: number): boolean {
     const e: Errors = {};
     if (s === 0) {
-      if (!draft.pos) e.pos = 'กรุณาปักหมุดตำแหน่งที่พบปัญหา';
+      if (!draft.pos) e.pos = 'แตะแผนที่ตรงจุดที่พบปัญหา เพื่อปักหมุดก่อน';
       else if (!isInTambon(draft.pos.lat, draft.pos.lng)) e.pos = 'หมุดอยู่นอกตำบลท่าแร้ง';
     }
     if (s === 1) {
-      if (!draft.category) e.category = 'กรุณาเลือกประเภทปัญหา';
-      if (!draft.placeName.trim()) e.placeName = 'กรุณาระบุชื่อจุดหรือสถานที่';
-      if (!draft.description.trim()) e.description = 'กรุณาเล่ารายละเอียดของปัญหา';
+      if (!draft.category) e.category = 'เลือกประเภทปัญหา';
+      if (!draft.placeName.trim()) e.placeName = 'ใส่ชื่อจุดหรือสถานที่ใกล้เคียง';
+      if (!draft.description.trim()) e.description = 'เล่าว่าเกิดอะไรขึ้น';
       else if (draft.description.trim().length < 5) e.description = 'รายละเอียดสั้นเกินไป เล่าเพิ่มอีกนิด';
-      if (!draft.reporterName.trim()) e.reporterName = 'กรุณากรอกชื่อผู้แจ้ง';
+      if (!draft.reporterName.trim()) e.reporterName = 'ใส่ชื่อผู้แจ้ง (ใช้ชื่อเล่นได้)';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -118,23 +173,52 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
   };
   const summaryItems = (Object.keys(errors) as (keyof Errors)[]).filter((k) => errors[k]);
 
-  async function send() {
+  async function send(withoutPhoto = false) {
     if (!user || !draft.pos || !draft.category) return;
     if (!navigator.onLine) {
-      setSubmit({ state: 'error', message: 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต ตรวจสอบสัญญาณแล้วลองอีกครั้ง' });
+      setSubmit({ state: 'error', message: 'ไม่มีการเชื่อมต่ออินเทอร์เน็ต ข้อมูลที่กรอกไว้ยังอยู่ ต่อสัญญาณได้แล้วกดส่งอีกครั้ง' });
       return;
     }
     const id = (reportIdRef.current ??= newReportId());
     let slowTimer: number | undefined;
+    let stallTimer: number | undefined;
     try {
       let photoUrl: string | null = null;
-      if (draft.photo) {
+      if (draft.photo && !withoutPhoto) {
         if (uploadedRef.current?.blob === draft.photo) {
           photoUrl = uploadedRef.current.url;
         } else {
+          const photo = draft.photo;
           setSubmit({ state: 'uploading', pct: 0 });
-          photoUrl = await uploadPhoto('reports', user.uid, id, draft.photo, (pct) => setSubmit({ state: 'uploading', pct }));
-          uploadedRef.current = { blob: draft.photo, url: photoUrl };
+          const ctrl = new AbortController();
+          abortRef.current = ctrl;
+          skipPhotoRef.current = false;
+          lastProgressRef.current = Date.now();
+          let pct = 0;
+          // ถ้าไม่มีความคืบหน้า 15 วินาที ถือว่าสัญญาณอ่อน ให้เลือกส่งโดยไม่มีรูปได้
+          stallTimer = window.setInterval(() => {
+            if (Date.now() - lastProgressRef.current > 15000) setSubmit({ state: 'uploading', pct, stalled: true });
+          }, 3000);
+          try {
+            photoUrl = await uploadPhoto(
+              'reports',
+              user.uid,
+              id,
+              photo,
+              (p) => {
+                if (p > pct) lastProgressRef.current = Date.now();
+                pct = p;
+                setSubmit({ state: 'uploading', pct });
+              },
+              ctrl.signal,
+            );
+            uploadedRef.current = { blob: photo, url: photoUrl };
+          } catch (err) {
+            if (!skipPhotoRef.current) throw err;
+            photoUrl = null;
+          } finally {
+            window.clearInterval(stallTimer);
+          }
         }
       }
       setSubmit({ state: 'saving', slow: false });
@@ -152,36 +236,60 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
         photoUrl,
       });
       saveName(name);
+      clearDraft();
       setSubmit({ state: 'success' });
     } catch (e) {
       console.error(e);
       setSubmit({ state: 'error', message: thaiError(e) });
     } finally {
       window.clearTimeout(slowTimer);
+      window.clearInterval(stallTimer);
     }
+  }
+
+  function skipPhoto() {
+    skipPhotoRef.current = true;
+    abortRef.current?.abort();
   }
 
   const busy = submit.state === 'uploading' || submit.state === 'saving';
 
   if (submit.state === 'success') {
     const id = reportIdRef.current!;
+    const link = `${window.location.origin}${window.location.pathname}#/r/${id}`;
+    const shareText = `ช่วยกันดูหน่อย: ${reportTitle({ category: draft.category!, placeName: draft.placeName })}`;
     return (
       <div className="flow" ref={topRef}>
         <div className="flow__done" role="status">
-          <CheckCircle2 size={48} className="flow__done-icon" aria-hidden />
-          <h1 tabIndex={-1}>ส่งเรื่องเรียบร้อย</h1>
-          <p>หมุดของคุณขึ้นบนแผนที่แล้ว เพื่อนบ้านและจิตอาสาจะเห็นทันที</p>
-          <p className="muted small">
-            เว็บนี้เป็นโครงงานของนักเรียน ข้อมูลไม่ได้ส่งถึง อบต.ท่าแร้ง โดยอัตโนมัติ หากเป็นเรื่องเร่งด่วนควรติดต่อหน่วยงานโดยตรง
-          </p>
+          <CheckCircle2 size={44} className="flow__done-icon" aria-hidden />
+          <h1 tabIndex={-1}>ส่งเรื่องแล้ว ขอบคุณที่ช่วยดูแลท่าแร้ง</h1>
+          <p>หมุดขึ้นบนแผนที่แล้ว ทุกคนเห็นได้ทันที เมื่อมีจิตอาสามารับเรื่อง สถานะของหมุดจะเปลี่ยน</p>
           <div className="btn-col">
             <button type="button" className="btn btn--primary btn--block" onClick={() => onViewReport(id)}>
               <MapPin size={18} aria-hidden /> ดูหมุดบนแผนที่
             </button>
-            <button type="button" className="btn btn--ghost btn--block" onClick={onCancel}>
-              กลับหน้าแผนที่
+            <a
+              className="btn btn--secondary btn--block"
+              href={`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(link)}&text=${encodeURIComponent(shareText)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              แชร์ให้เพื่อนบ้านทาง LINE
+            </a>
+            <button
+              type="button"
+              className="btn btn--ghost btn--block"
+              onClick={() => {
+                reportIdRef.current = null;
+                uploadedRef.current = null;
+                setSubmit({ state: 'idle' });
+                startOver();
+              }}
+            >
+              แจ้งอีกเรื่อง
             </button>
           </div>
+          <p className="muted small">เว็บนี้เป็นโครงงานนักเรียน เรื่องที่แจ้งไม่ได้ส่งถึง อบต.ท่าแร้ง โดยอัตโนมัติ</p>
         </div>
       </div>
     );
@@ -210,6 +318,17 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
           </li>
         ))}
       </ol>
+
+      {restored && step < 2 && (
+        <div className="notice" role="status">
+          <p>มีเรื่องที่กรอกค้างไว้จากครั้งก่อน กรอกต่อได้เลย</p>
+          <div className="btn-row">
+            <button type="button" className="btn btn--ghost" onClick={startOver}>
+              ล้างแล้วเริ่มใหม่
+            </button>
+          </div>
+        </div>
+      )}
 
       {!ready ? (
         <p className="muted">กำลังตรวจสอบการเข้าสู่ระบบ…</p>
@@ -284,7 +403,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
               value={draft.placeName}
               maxLength={LIMITS.placeName}
               onChange={(e) => set('placeName', e.target.value)}
-              placeholder="เช่น ทางแยกท่าแร้ง, หน้าวัด, ซอย 3"
+              placeholder="เช่น หน้ามัสยิด, ริมคลองท่าแร้ง, ซอย 3"
               name="placeName"
               id="field-placeName"
               aria-invalid={!!errors.placeName}
@@ -320,7 +439,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
               value={draft.reporterName}
               maxLength={LIMITS.name}
               onChange={(e) => set('reporterName', e.target.value)}
-              placeholder="เช่น นาย ก"
+              placeholder="เช่น พี่ต้อย หรือ ป้าแดง"
               autoComplete="name"
               name="reporterName"
               id="field-reporterName"
@@ -353,9 +472,9 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
                 <dd>{draft.placeName.trim()}</dd>
               </div>
               <div>
-                <dt>พิกัด</dt>
+                <dt>ตำแหน่ง</dt>
                 <dd>
-                  {draft.pos!.lat.toFixed(5)}, {draft.pos!.lng.toFixed(5)}{' '}
+                  {nearText(draft.pos!.lat, draft.pos!.lng) ?? 'ในตำบลท่าแร้ง'}{' '}
                   <button type="button" className="btn-link" onClick={() => setStep(0)} disabled={busy}>
                     แก้ตำแหน่ง
                   </button>
@@ -382,7 +501,7 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
           )}
 
           <div className="flow__nav">
-            <button type="button" className="btn btn--primary btn--block btn--lg" onClick={send} disabled={busy} data-testid="submit-report">
+            <button type="button" className="btn btn--primary btn--block btn--lg" onClick={() => send()} disabled={busy} data-testid="submit-report">
               {submit.state === 'uploading'
                 ? `กำลังอัปโหลดรูป… ${submit.pct}%`
                 : submit.state === 'saving'
@@ -395,9 +514,22 @@ export function ReportFlow({ existing, onCancel, onViewReport }: Props) {
                     )
                     : 'ยืนยันและส่งเรื่อง'}
             </button>
+            {submit.state === 'uploading' && submit.stalled && (
+              <div className="notice" role="status">
+                <p>สัญญาณอ่อน รูปยังส่งไม่ออก ข้อมูลที่กรอกยังอยู่ครบ</p>
+                <button type="button" className="btn btn--secondary" onClick={skipPhoto}>
+                  ส่งเรื่องโดยไม่มีรูป
+                </button>
+              </div>
+            )}
+            {submit.state === 'error' && draft.photo && !uploadedRef.current && (
+              <button type="button" className="btn btn--ghost btn--block" onClick={() => send(true)}>
+                ส่งเรื่องโดยไม่มีรูป
+              </button>
+            )}
             {submit.state === 'saving' && submit.slow && (
               <p className="hint" role="status">
-                อินเทอร์เน็ตค่อนข้างช้า ระบบกำลังส่งอยู่ กรุณาอย่าปิดหน้านี้
+                อินเทอร์เน็ตค่อนข้างช้า ระบบกำลังส่งอยู่ ถ้าปิดหน้านี้ไป ข้อมูลที่กรอกยังเก็บไว้ในเครื่อง
               </p>
             )}
           </div>

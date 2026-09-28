@@ -78,7 +78,7 @@ try {
 
   // กดถัดไปโดยไม่ปักหมุด → ต้องแจ้งเตือนภาษาไทย
   await reporter.getByRole('button', { name: 'ถัดไป: กรอกข้อมูล' }).click();
-  await reporter.getByText('กรุณาปักหมุดตำแหน่งที่พบปัญหา').waitFor();
+  await reporter.getByText('แตะแผนที่ตรงจุดที่พบปัญหา เพื่อปักหมุดก่อน').waitFor();
   // แตะแผนที่ใกล้ อบต.ท่าแร้ง (อยู่ในเขตตำบล) แล้วลากหมุดขยับเล็กน้อย
   const ob = await reporter.locator('.place--government .place__dot').boundingBox();
   await reporter.mouse.click(ob.x + ob.width / 2 + 6, ob.y + ob.height / 2 - 4);
@@ -106,11 +106,11 @@ try {
   const summary = reporter.locator('.error-summary');
   await summary.waitFor();
   assert.equal(await summary.evaluate((el) => el === document.activeElement), true, 'โฟกัสต้องย้ายไปที่สรุปข้อผิดพลาด');
-  for (const t of ['กรุณาเลือกประเภทปัญหา', 'กรุณาระบุชื่อจุดหรือสถานที่', 'กรุณาเล่ารายละเอียดของปัญหา']) {
+  for (const t of ['เลือกประเภทปัญหา', 'ใส่ชื่อจุดหรือสถานที่ใกล้เคียง', 'เล่าว่าเกิดอะไรขึ้น']) {
     await summary.getByText(t).waitFor();
     await reporter.locator('.field .form-error', { hasText: t }).waitFor();
   }
-  await summary.getByRole('link', { name: 'กรุณาระบุชื่อจุดหรือสถานที่' }).click();
+  await summary.getByRole('link', { name: 'ใส่ชื่อจุดหรือสถานที่ใกล้เคียง' }).click();
   assert.equal(await reporter.evaluate(() => document.activeElement?.id), 'field-placeName');
   step('ตรวจช่องจำเป็น: สรุปข้อผิดพลาดภาษาไทยด้านบน (รับโฟกัส ลิงก์ไปที่ช่อง) + ข้อความใต้แต่ละช่อง');
 
@@ -118,12 +118,19 @@ try {
   await reporter.locator('input[name="placeName"]').fill('หน้า อบต.ท่าแร้ง (ทดสอบ E2E)');
   await reporter.locator('textarea[name="description"]').fill('มีน้ำท่วมขังหลังฝนตก รถผ่านลำบาก');
   await reporter.locator('input[name="reporterName"]').fill('นาย ก');
+  // ปิด/รีโหลดหน้ากลางคัน → ร่างต้องกลับมาครบ
+  await reporter.waitForTimeout(300);
+  await reporter.reload();
+  await reporter.getByText('มีเรื่องที่กรอกค้างไว้จากครั้งก่อน').waitFor();
+  assert.equal(await reporter.locator('input[name="placeName"]').inputValue(), 'หน้า อบต.ท่าแร้ง (ทดสอบ E2E)');
+  assert.equal(await reporter.locator('input[name="reporterName"]').inputValue(), 'นาย ก');
+  step('รีโหลดหน้ากลางคัน ข้อมูลที่กรอกไว้กลับมาครบ');
   await reporter.locator('[data-testid="photo-input"]').setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: PNG });
   await reporter.locator('.photo-preview img').waitFor();
   await reporter.getByRole('button', { name: 'ถัดไป: ตรวจสอบข้อมูล' }).click();
   await reporter.getByText('น้ำท่วมขัง หน้า อบต.ท่าแร้ง (ทดสอบ E2E)').waitFor();
   await reporter.getByTestId('submit-report').click();
-  await reporter.getByText('ส่งเรื่องเรียบร้อย').waitFor({ timeout: 15000 });
+  await reporter.getByText(/ส่งเรื่องแล้ว/).waitFor({ timeout: 15000 });
   step('ส่งรายงานพร้อมรูปภาพสำเร็จ');
 
   // 2) หมุดปรากฏบนแผนที่ของอีกเครื่องแบบเรียลไทม์ (ไม่รีโหลด)
@@ -164,7 +171,7 @@ try {
   // 4) แจ้งว่าแก้ไขแล้ว
   await card.getByRole('button', { name: 'แจ้งว่าแก้ไขแล้ว' }).click();
   await card.getByRole('button', { name: 'บันทึกผล' }).click();
-  await card.getByText(/กรุณาบันทึกสิ่งที่ทำ/).waitFor();
+  await card.getByText(/เล่าสั้น ๆ ว่าทำอะไรไปแล้ว/).waitFor();
   await card.locator('textarea[name="resolutionNote"]').fill('ลอกท่อระบายน้ำ น้ำลดแล้ว');
   await card.locator('[data-testid="photo-input"]').setInputFiles({ name: 'after.png', mimeType: 'image/png', buffer: PNG });
   await card.getByRole('button', { name: 'บันทึกผล' }).click();

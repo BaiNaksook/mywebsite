@@ -190,7 +190,7 @@ export default function App() {
               <MapView reports={filtered} selectedId={selectedId} onSelect={(id) => select(id)} focus={focus} inset={{ bottomFraction: 0.5 }} />
             </div>
           )}
-          <Filters status={status} category={category} onStatus={setStatus} onCategory={setCategory} />
+          <Filters category={category} onCategory={setCategory} />
           {listSection}
           <Footer />
         </aside>

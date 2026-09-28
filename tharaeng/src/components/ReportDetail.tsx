@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ChevronDown, Clock, EyeOff, HandHeart, Link2, MapPin, Navigation, RotateCcw, UserRound, Users, X } from 'lucide-react';
-import { categoryLabel, LIMITS, statusLabel } from '../config';
+import { LIMITS, statusLabel } from '../config';
 import { useAuth } from '../hooks/useAuth';
 import {
   hideReport,
@@ -15,6 +15,7 @@ import {
 import { getSavedName, saveName } from '../lib/storage';
 import { formatDateTime, timeAgo } from '../lib/time';
 import { reportTitle } from '../lib/title';
+import { nearText } from '../lib/nearby';
 import type { HistoryEvent, Report } from '../types';
 import { CategoryIcon } from './icons';
 import { PhotoPicker } from './PhotoPicker';
@@ -42,6 +43,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
   const me = user?.uid ?? null;
   const isVolunteer = !!me && report.volunteers.some((v) => v.uid === me);
   const isReporter = !!me && report.reporterUid === me;
+  const near = nearText(report.lat, report.lng);
 
   return (
     <article className="detail" aria-labelledby="detail-title" data-report-id={report.id}>
@@ -60,34 +62,19 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
         </button>
       </header>
 
-      <dl className="facts">
-        <div>
-          <dt>ประเภท</dt>
-          <dd>{categoryLabel(report.category)}</dd>
-        </div>
-        <div>
-          <dt>สถานที่</dt>
-          <dd>{report.placeName}</dd>
-        </div>
-        <div>
-          <dt>แจ้งเมื่อ</dt>
-          <dd>
-            {timeAgo(report.createdAt)} <span className="muted">· {formatDateTime(report.createdAt)}</span>
-          </dd>
-        </div>
-        <div>
-          <dt>ผู้แจ้ง</dt>
-          <dd>{report.reporterName}</dd>
-        </div>
-      </dl>
+      <div className="detail__meta">
+        <p>
+          แจ้งโดย <strong>{report.reporterName}</strong>{' '}
+          <time dateTime={report.createdAt?.toISOString()} title={formatDateTime(report.createdAt)}>
+            {timeAgo(report.createdAt)}
+          </time>
+        </p>
+        <p className="detail__near">
+          <MapPin size={15} aria-hidden /> {near ?? report.placeName}
+        </p>
+      </div>
 
       <p className="detail__desc">{report.description}</p>
-
-      {report.photoUrl && (
-        <a href={report.photoUrl} target="_blank" rel="noopener" className="detail__photo">
-          <img src={report.photoUrl} alt={`รูปประกอบ: ${reportTitle(report)}`} loading="lazy" />
-        </a>
-      )}
 
       <section className="detail__section">
         <h3>
@@ -112,7 +99,7 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
             </a>
           )}
           <p className="muted small">
-            บันทึกโดย {report.resolution.byName} · {formatDateTime(report.resolution.at)}
+            {report.resolution.byName} แจ้งว่าแก้แล้ว เมื่อ {formatDateTime(report.resolution.at)}
           </p>
         </section>
       )}
@@ -200,6 +187,12 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
         )}
       </div>
 
+      {report.photoUrl && (
+        <a href={report.photoUrl} target="_blank" rel="noopener" className="detail__photo">
+          <img src={report.photoUrl} alt={`รูปประกอบ: ${reportTitle(report)}`} loading="lazy" />
+        </a>
+      )}
+
       <div className="detail__links">
         <a
           className="btn-link"
@@ -214,9 +207,6 @@ export function ReportDetail({ report, onClose, onToast }: Props) {
 
       <History reportId={report.id} />
 
-      <p className="coords muted small">
-        <MapPin size={13} aria-hidden /> {report.lat.toFixed(5)}, {report.lng.toFixed(5)}
-      </p>
     </article>
   );
 }
@@ -235,7 +225,7 @@ function NameField({ value, onChange, error, label = 'ชื่อที่จ�
         value={value}
         maxLength={LIMITS.name}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="เช่น นาย ข หรือ ป้าแดง"
+        placeholder="เช่น พี่ต้อย หรือ ป้าแดง"
         autoComplete="name"
         name="helperName"
       />
@@ -254,7 +244,7 @@ function JoinForm({ report, onCancel, onDone }: { report: Report; onCancel: () =
   async function submit(e: FormEvent) {
     e.preventDefault();
     const n = name.trim();
-    if (!n) return setNameErr('กรุณากรอกชื่อผู้ช่วย');
+    if (!n) return setNameErr('ใส่ชื่อที่จะให้คนอื่นเห็นว่าใครมาช่วย');
     setNameErr(undefined);
     setBusy(true);
     setErr(null);
@@ -336,8 +326,8 @@ function ResolveForm({ report, isAdmin, onCancel, onDone }: { report: Report; is
     e.preventDefault();
     const n = note.trim();
     const errs: typeof fieldErr = {};
-    if (!n) errs.note = 'กรุณาบันทึกสิ่งที่ทำ เช่น “ลอกท่อระบายน้ำ น้ำลดแล้ว”';
-    if (!name.trim()) errs.name = 'กรุณากรอกชื่อ';
+    if (!n) errs.note = 'เล่าสั้น ๆ ว่าทำอะไรไปแล้ว เช่น “ลอกท่อระบายน้ำ น้ำลดแล้ว”';
+    if (!name.trim()) errs.name = 'ใส่ชื่อที่จะแสดงบนเว็บ';
     setFieldErr(errs);
     if (Object.keys(errs).length) return;
     setErr(null);
@@ -413,8 +403,8 @@ function ReasonForm(props: {
   async function submit(e: FormEvent) {
     e.preventDefault();
     const errs: typeof fieldErr = {};
-    if (props.required && !reason.trim()) errs.reason = 'กรุณาระบุเหตุผล';
-    if (!name.trim()) errs.name = 'กรุณากรอกชื่อ';
+    if (props.required && !reason.trim()) errs.reason = 'บอกเหตุผลสั้น ๆ ให้คนอื่นเข้าใจ';
+    if (!name.trim()) errs.name = 'ใส่ชื่อที่จะแสดงบนเว็บ';
     setFieldErr(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
